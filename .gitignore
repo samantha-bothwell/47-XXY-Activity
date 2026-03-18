@@ -1,4 +1,4 @@
-*\Data
 .Rproj.user
 data-raw/
 outputs/
+*.csv
