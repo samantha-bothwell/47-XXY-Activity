@@ -26,7 +26,7 @@ epochs_dir <- here::here("data-raw", "15sEpochs")
 files <- list.files(epochs_dir)
 
 ## Demographic data 
-dems <- here::here("data_raw", "LTE_FullDATA_03172026.csv")
+dems <- read_csv(here::here("data-raw", "LTE_FullDATA_03172026.csv"))
 
 ## Source functions
 source(here::here("R", "parse_time.R"))
@@ -134,6 +134,7 @@ sumdata_day <- sumdata_day %>%
   # assign index 
   mutate(index = as.numeric(factor(minute, levels = unique(minute), labels = c(1:1440))))
 
+
 ## Add group
 sumdata_1min$group <- dems$group[match(sumdata_1min$ID, dems$pid)]
 sumdata_1min$group <- ifelse(sumdata_1min$group == 1, "KS Case", "Non-KS Control")
@@ -141,6 +142,7 @@ sumdata_day$group <- dems$group[match(sumdata_day$ID, dems$pid)]
 sumdata_day$group <- ifelse(sumdata_day$group == 1, "KS Case", "Non-KS Control")
 sumdata_15min$group <- dems$group[match(sumdata_15min$ID, dems$pid)]
 sumdata_15min$group <- ifelse(sumdata_15min$group == 1, "KS Case", "Non-KS Control")
+
 
 ## Remove the ids that were removed from the study (should be 501, 512, 514, 517, 518, and 565)
 sumdata_1min <- sumdata_1min %>% filter(!is.na(group))
@@ -150,7 +152,7 @@ sumdata_15min <- sumdata_15min %>% filter(!is.na(group))
 
 ## Save files
 write.csv(sumdata_1min, here::here("inst", "extdata", "Aggregated1min_cleaned.csv"))
-write.csv(sumdata_day, "/Volumes/Shared/Shared Projects/Bothwell/Peds ENDO/SCA Studies/Bothwell - PA and Sleep in LTE/Wearable Device Data/Data/Nonaggregated1min_cleaned.csv")
-write.csv(sumdata_15min, "/Volumes/Shared/Shared Projects/Bothwell/Peds ENDO/SCA Studies/Bothwell - PA and Sleep in LTE/Wearable Device Data/Data/Aggregated15min_cleaned.csv")
+write.csv(sumdata_day, here::here("inst", "extdata", "Nonaggregated1min_cleaned.csv"))
+write.csv(sumdata_15min, here::here("inst", "extdata", "Aggregated15min_cleaned.csv"))
 
 
