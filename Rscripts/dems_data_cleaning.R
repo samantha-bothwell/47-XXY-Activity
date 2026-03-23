@@ -12,34 +12,34 @@
 rm(list = ls())
 
 ## Libraries
-library(table1)
-#library(PAutilities)
+library(readr)
+library(dplyr)
+library(tidyr)
 library(lubridate)
 
-## Source out activity and sleep analyses
-#source("/Volumes/Shared/Shared Projects/Bothwell/Peds ENDO/SCA Studies/Bothwell - PA and Sleep in LTE/Wearable Device Data/Code/sleep_data_cleaning.R")
-#source("/Volumes/Shared/Shared Projects/Bothwell/Peds ENDO/SCA Studies/Bothwell - PA and Sleep in LTE/Wearable Device Data/Code/data_cleaning.R")
-sumdata_mvpa <- read.csv("/Volumes/Shared/Shared Projects/Bothwell/Peds ENDO/SCA Studies/LTE Cardiorespiratory/Data/LTE_METSandMVPA_11202025.csv") %>% 
-  dplyr::select(-X)
-
-
 ## Demographics data
-full <- read.csv("/Volumes/Shared/Shared Projects/Bothwell/Peds ENDO/SCA Studies/Bothwell - PA and Sleep in LTE/Wearable Device Data/Data/LTE212860Interrogati_DATA_2025-11-20_1034.csv") %>% 
+full <- read_csv(here::here("data-raw", "LTE_FullDATA_03172026.csv")) %>% 
   group_by(pid) %>% 
-  mutate(group = max(group, na.rm = T), 
-         group = ifelse(group == -Inf, NA, group)) %>% 
+  fill(group, .direction = "downup") %>% 
   ungroup()
+
+## Load cleaned activity data
+sumdata_1min <- read_csv(here::here("data-clean", "Aggregated1min_cleaned.csv"))
+mvpa <- read_csv(here::here("data-clean", "LTE_METSandMVPA.csv"))
 
 ## Clean dems 
 dems_clean <- full %>% 
-  filter(!is.na(group)) %>% 
+  # filter to only screening arm for demographics
   filter(redcap_event_name == "screening_arm_1") %>% 
-  filter(!(grepl("z", pid))) %>% 
-  filter(pid != "LUFKIN SURVEYS") %>% 
-  #filter(as.character(pid) %in% sumdata_1min$ID) %>% 
+  # Remove non-participant records 
+  filter(!is.na(group)) %>% filter(!grepl("SURVEYS", pid, ignore.case = T)) %>% 
+  # Remove exclusion IDs who dropped before screening
+  filter(!(pid %in% c("z517", "z565"))) %>% 
+  # remove "z" from IDs that do have activity data
+  mutate(pid = gsub("z", "", pid)) %>% 
   # Filter to only IDs within the activity summary data
   mutate(pid = as.character(pid)) %>% 
-  #filter(pid %in% sumdata_1min$ID) %>% 
+  filter(pid %in% sumdata_1min$ID) %>% 
   # Recode demographic variables 
   mutate(group = factor(group, levels = c(1, 0, 2), labels = c("KS Case", "Non-KS Control", "P-Value")), 
          nih_ethnicity_race = case_when(race_eth_new___4 == 1 ~ "Hispanic/Latinx", 
@@ -55,9 +55,7 @@ dems_clean <- full %>%
   mutate(vo2_max_ml_kg_min = as.numeric(vo2_max_ml_kg_min)) %>% 
   # Select variables we're interested in 
   dplyr::select(pid, calc_age, group, nih_ethnicity_race, pe_wt, pe_ht, pe_bmi, vo2_max_ml_kg_min, totalsedentarytimem,
-                ad_date, ad_time, ad_q7, fat_ad_t, fat_ped_t, fat_pp_t, sleep_ped_t, sleep_ad_t, sleep_pp_t) %>% 
-  # filter out people that are missing data 
-  filter(!is.na(calc_age))
+                ad_date, ad_time, ad_q7, fat_ad_t, fat_ped_t, fat_pp_t, sleep_ped_t, sleep_ad_t, sleep_pp_t)
 
 
 ## Clean self reported activity
@@ -71,9 +69,9 @@ sr_act <- full %>%
 sr_act$group <- dems_clean$group[match(sr_act$pid, dems_clean$pid)]
 
 
-sumdata_mvpa <- merge(sumdata_mvpa, sr_act, by.x = c("ID", "date"), by.y = c("pid", "ad_date"))
+mvpa <- merge(mvpa, sr_act, by.x = c("ID", "date"), by.y = c("pid", "ad_date"))
 
-ggplot(sumdata_mvpa, aes(y = Avg_MVPA_Percent, x = group, fill = selfreport_exercise)) + 
+ggplot(mvpa, aes(y = Avg_MVPA_Percent, x = group, fill = selfreport_exercise)) + 
   geom_boxplot() + 
   theme_bw(base_size = 16) + 
   labs(x = "", y = "Daily % MVPA", fill = "Self Reported \nDaily Exercise") + 
@@ -85,14 +83,14 @@ model_cs <- lme(
   Avg_MVPA_Percent ~ group * selfreport_exercise,
   random = ~1 | ID,
   correlation = corCompSymm(form = ~ 1 | ID),
-  data = sumdata_mvpa
+  data = mvpa
 )
 
 model_cs <- lme(
   Avg_MVPA_Percent ~ selfreport_exercise,
   random = ~1 | ID,
   correlation = corCompSymm(form = ~ 1 | ID),
-  data = sumdata_mvpa[sumdata_mvpa$group == "KS Case",]
+  data = mvpa[mvpa$group == "KS Case",]
 )
 
 
