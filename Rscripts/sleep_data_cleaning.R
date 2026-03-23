@@ -11,120 +11,131 @@
 rm(list = ls())
 
 ## Libraries 
-library(readxl)
+library(here)
+library(readr)
+library(tidyr)
+library(dplyr)
+library(lubridate)
 library(janitor)
-library(tidyverse)
-library(refund)
-library(mgcv)
-library(refund.shiny)
-library(ggpubr)
-library(MASS)
-library(ggplot2)
-library(svMisc)
+library(purrr)
 
 ## Get names of all datasets 
-path <- "/Volumes/Shared/Shared Projects/Bothwell/Peds ENDO/SCA Studies/Bothwell - PA and Sleep in LTE/Wearable Device Data/Data/Sleep/"
-files <- list.files(path)
+epochs_dir <- here::here("data-raw", "Sleep")
+files <- list.files(epochs_dir)
 
 ## Demographic data 
-dems <- read.csv("/Volumes/Shared/Shared Projects/Bothwell/Peds ENDO/SCA Studies/Bothwell - PA and Sleep in LTE/Wearable Device Data/Data/LTE212860Interrogati_DATA_2025-01-08_0859.csv") %>% 
-  filter(!is.na(group)) %>% 
-  mutate(pid = ifelse(grepl("z", pid), substr(pid, 2, 4), pid))
+dems <- read_csv(here::here("data-raw", "LTE_FullDATA_03172026.csv")) %>% 
+  # filter out IDs with a missing group
+  filter(!is.na(group)) %>%
+  # filter out IDs beginning with 'z'
+  filter(!(grepl("z", pid)))
 
 
-## Loop over data and save summarized data 
-sleep_daysum <- data.frame(matrix(NA, ncol = 10))
-names(sleep_daysum) <- c("Date", "asleep_time", "awake_time", "prop_asleep", "prop_awake", "index", "dayofweek", "month", "weekday", "ID")
-sumsleep_1min <- data.frame(matrix(NA, ncol = 7))
-names(sumsleep_1min) = c("minute", "Avg_WhiteLight", "Avg_RedLight", "Avg_GreenLight", "Avg_BlueLight", "index", "ID")
+
+############ Data Processing 
+## Initialize results dataframes
+res_day <- vector("list", length(files))
+res_1min <- vector("list", length(files))
 
 
-# pb = txtProgressBar(min = 0, max = length(files), initial = 0)
-
-for(i in 1:length(files)){
+## Loop over files and summarize data
+for(i in seq_along(files)){
   
-  ## load data 
-  pt_dat <- read.csv(paste0(path, files[i])) %>% filter(!is.na(Line)) %>% 
+  ## Load patient epoch data
+  fpath <- if (!is.null(epochs_dir)) file.path(epochs_dir, files[i]) else files[i]
+  pt_dat <- suppressMessages(readr::read_csv(fpath, show_col_types = FALSE)) %>% 
+    clean_names() %>% filter(!is.na(line)) %>% 
     # Assume awake if off wrist
-    mutate(Sleep.Wake = ifelse(Off.Wrist.Status == 1, 1, Sleep.Wake), 
-           Interval.Status = ifelse(Off.Wrist.Status == 1, "ACTIVE", Interval.Status))
+    mutate(sleep_wake = ifelse(off_wrist_status == 1, 1, sleep_wake), 
+           interval_status = ifelse(off_wrist_status == 1, "ACTIVE", interval_status))
   
-  ## Save id 
-  id <- substr(files[i], 1, 3)
+  ## Extract participant ID from path
+  id <- substr(basename(fpath), 1, 3)
   
-  ## Exclude IDs 557 and 570 for lack of usable data
-  if(!(id %in% c("557", "570"))){
-    ## Day summaries 
-    pt_day <- pt_dat %>% 
-      group_by(Date) %>% 
-      summarise(#asleep_time = length(Sleep.Wake[Sleep.Wake == 0] == TRUE),
-                #awake_time = length(Sleep.Wake[Sleep.Wake == 1] == TRUE), 
-                asleep_time = length(Interval.Status[Interval.Status == "REST-S"] == TRUE),
-                awake_time = length(Interval.Status[Interval.Status %in% c("ACTIVE", "REST")] == TRUE), 
-                prop_asleep = asleep_time/1440, 
-                prop_awake = awake_time/1440) %>% 
-      # Filter to only days where the watch was worn at least 90% of the time
-      filter(prop_awake + prop_asleep > 0.9) %>% 
-      # filter to only days with less than 75% of time asleep
-      filter(prop_asleep < 0.75 & prop_asleep > 0.083) %>% 
-      ungroup() %>% 
-      # Sort by date
-      mutate(Date = as.Date(Date, format = "%m/%d/%y")) %>% 
-      arrange(Date) %>%
-      filter(Date != min(Date), Date != max(Date)) %>% 
-      # Assign day index 
-      mutate(index = 1:length(Date)) %>%
-      mutate(dayofweek = weekdays(Date), 
-             month = months(Date),
-             weekday = ifelse(dayofweek %in% c("Saturday", "Sunday"), "Weekend", "Weekday")) %>% 
-      mutate(ID = id)
-    
-    ## Summarize minute level data across days 
-    pt_minute <- pt_dat %>% 
-      # Save minute and date
-      mutate(Time = format(strptime(Time, "%I:%M:%S %p"), format = "%H:%M:%S"), 
-             minute = as.numeric(substr(Time, 1, 2))*60 + as.numeric(substr(Time, 4, 5))) %>%
-      # Filter to days in the summary dataset 
-      mutate(Date = as.Date(Date, format = "%m/%d/%y")) %>% 
-      filter(Date %in% pt_day$Date) %>% 
-      # Fill in missing minutes 
-      group_by(Date) %>% 
-      complete(minute = 0:1439) %>%
-      # Mean across days 
-      group_by(minute) %>% 
-      summarise(Avg_WhiteLight = mean(White.Light, na.rm = T), 
-                Avg_RedLight = mean(Red.Light, na.rm = T),
-                Avg_GreenLight = mean(Green.Light, na.rm = T),
-                Avg_BlueLight = mean(Blue.Light, na.rm = T)) %>%
-      ungroup() %>% 
-      # Save index
-      mutate(index = 1:length(minute)) %>% 
-      # List ID 
-      mutate(ID = id)
+  
+  ## Manual exclusion of IDs 557 and 570 for lack of usable data
+  ## If there are no valid rows, skip
+  if (id %in% c("557", "570")) {
+    warning("No valid data for ID ", id)
+    next
   }
   
-  ## Save data
-  sumsleep_1min <- data.frame(rbind(sumsleep_1min, pt_minute))
-  sleep_daysum <- data.frame(rbind(sleep_daysum, pt_day))
+  ## Day summaries 
+  pt_day <- pt_dat %>% 
+    group_by(date) %>% 
+    summarise(#asleep_time = length(Sleep.Wake[Sleep.Wake == 0] == TRUE),
+              #awake_time = length(Sleep.Wake[Sleep.Wake == 1] == TRUE), 
+              asleep_time = length(interval_status[interval_status == "REST-S"] == TRUE),
+              awake_time = length(interval_status[interval_status %in% c("ACTIVE", "REST")] == TRUE), 
+              prop_asleep = asleep_time/1440, 
+              prop_awake = awake_time/1440) %>% 
+    # Filter to only days where the watch was worn at least 90% of the time
+    filter(prop_awake + prop_asleep > 0.9) %>% 
+    # filter to only days with less than 75% of time asleep
+    filter(prop_asleep < 0.75 & prop_asleep > 0.083) %>% 
+    ungroup() %>% 
+    # Sort by date
+    mutate(date = as.Date(date, format = "%m/%d/%y")) %>% 
+    arrange(date) %>%
+    filter(date != min(date), date != max(date)) %>% 
+    # Assign day index 
+    mutate(index = 1:length(date)) %>%
+    mutate(dayofweek = weekdays(date), 
+           month = months(date),
+           weekday = ifelse(dayofweek %in% c("Saturday", "Sunday"), "Weekend", "Weekday")) %>% 
+    mutate(ID = id)
   
-  # print(id)
   
-  #setTxtProgressBar(pb,i)
-  progress(i, max.value = length(files))
+  ## Summarize minute level data across days 
+  pt_minute <- pt_dat %>% 
+    # Save minute and date
+    mutate(#time = format(strptime(time, "%H:%M:%S %p"), format = "%H:%M:%S"), 
+           minute = as.numeric(substr(time, 1, 2))*60 + as.numeric(substr(time, 4, 5))) %>%
+    # Filter to days in the summary dataset 
+    mutate(date = as.Date(date, format = "%m/%d/%y")) %>% 
+    filter(date %in% pt_day$date) %>% 
+    # Fill in missing minutes 
+    group_by(date) %>% 
+    complete(minute = 0:1439) %>%
+    # Mean across days 
+    group_by(minute) %>% 
+    summarise(avg_white_light = mean(white_light, na.rm = T), 
+              avg_red_light = mean(red_light, na.rm = T),
+              avg_green_light = mean(green_light, na.rm = T),
+              avg_blue_light = mean(blue_light, na.rm = T)) %>%
+    ungroup() %>% 
+    # Save index
+    mutate(index = 1:length(minute)) %>% 
+    # List ID 
+    mutate(ID = id)
   
-  
+  ## Save participant results
+  res_day[[i]] <- pt_day
+  res_1min[[i]] <- pt_minute
+
 }
 
 
-## Clean up datasets
-sumsleep_1min <- sumsleep_1min %>% filter(!is.na(minute)) %>% group_by(ID, minute) %>% slice(1)
-sleep_daysum <- sleep_daysum %>% filter(!is.na(Date)) 
+## Bind all the results
+sleep_daysum <- dplyr::bind_rows(res_day)
+sumsleep_1min <- dplyr::bind_rows(res_1min)
+
 
 ## Add group
 sumsleep_1min$group <- dems$group[match(sumsleep_1min$ID, dems$pid)]
 sumsleep_1min$group <- ifelse(sumsleep_1min$group == 1, "Case (KS)", "Control")
 sleep_daysum$group <- dems$group[match(sleep_daysum$ID, dems$pid)]
 sleep_daysum$group <- ifelse(sleep_daysum$group == 1, "Case (KS)", "Control")
+
+## Remove the ids that were removed from the study (should be 501, 512, 514, 517, 518, and 565)
+sumsleep_1min <- sumsleep_1min %>% filter(!is.na(group))
+sleep_daysum <- sleep_daysum %>% filter(!is.na(group))
+
+
+## Save files
+write.csv(sumsleep_1min, here::here("data-clean", "Aggregated1minSleep_cleaned.csv"))
+write.csv(sleep_daysum, here::here("data-clean", "DaySleepSummary_cleaned.csv"))
+
 
 
 ## Summarize the average time asleep per group (Split by Weekday and Weekend)

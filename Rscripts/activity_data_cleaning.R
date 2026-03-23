@@ -33,7 +33,7 @@ dems <- read_csv(here::here("data-raw", "LTE_FullDATA_03172026.csv")) %>%
   filter(!(grepl("z", pid)))
 
 ## Source functions
-source(here::here("R", "parse_time.R"))
+source(here::here("Rfunctions", "parse_time.R"))
 
 
 
@@ -148,20 +148,14 @@ sumdata_mvpa <- dplyr::bind_rows(res_mvpa)
 
 ## Clean up datasets
 sumdata_1min <- sumdata_1min %>% 
-  # remove extra row from initializing dataframe
-  filter(!is.na(minute)) %>% 
   # assign index 
   mutate(index = as.numeric(factor(minute, levels = unique(minute), labels = c(1:1440))))
 
 sumdata_15min <- sumdata_15min %>% 
-  # remove extra row from initializing dataframe
-  filter(!is.na(min15)) %>% 
   # assign index 
   mutate(index = as.numeric(factor(min15, levels = unique(min15), labels = c(1:96))))
 
 sumdata_day <- sumdata_day %>% 
-  # remove extra row from initializing dataframe
-  filter(!is.na(minute)) %>% 
   # assign index 
   mutate(index = as.numeric(factor(minute, levels = unique(minute), labels = c(1:1440))))
 
@@ -188,9 +182,9 @@ sumdata_mvpa <- sumdata_mvpa %>% filter(!is.na(group))
 
 
 ## Save files
-write.csv(sumdata_1min, here::here("inst", "extdata", "Aggregated1min_cleaned.csv"))
-write.csv(sumdata_day, here::here("inst", "extdata", "Nonaggregated1min_cleaned.csv"))
-write.csv(sumdata_15min, here::here("inst", "extdata", "Aggregated15min_cleaned.csv"))
-write.csv(sumdata_mvpa, here::here("inst", "extdata", "LTE_METSandMVPA.csv"))
+write.csv(sumdata_1min, here::here("data-clean", "Aggregated1min_cleaned.csv"))
+write.csv(sumdata_day, here::here("data-clean", "Nonaggregated1min_cleaned.csv"))
+write.csv(sumdata_15min, here::here("data-clean", "Aggregated15min_cleaned.csv"))
+write.csv(sumdata_mvpa, here::here("data-clean", "LTE_METSandMVPA.csv"))
 
 
