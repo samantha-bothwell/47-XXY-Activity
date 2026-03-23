@@ -58,6 +58,8 @@ dems_clean <- full %>%
                 ad_date, ad_time, ad_q7, fat_ad_t, fat_ped_t, fat_pp_t, sleep_ped_t, sleep_ad_t, sleep_pp_t)
 
 
+write_csv(dems_clean, here::here("data-clean", "identifiable", "Demographics.csv"))
+
 ## Clean self reported activity
 sr_act <- full %>% 
   # Select variables we're interested in 
