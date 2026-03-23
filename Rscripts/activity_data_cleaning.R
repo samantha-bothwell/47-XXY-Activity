@@ -29,8 +29,8 @@ files <- list.files(epochs_dir)
 dems <- read_csv(here::here("data-raw", "LTE_FullDATA_03172026.csv")) %>% 
   # filter out IDs with a missing group
   filter(!is.na(group)) %>%
-  # filter out IDs beginning with 'z'
-  filter(!(grepl("z", pid)))
+  # replace "z" in IDs
+  mutate(pid = gsub("z", "", pid))
 
 ## Source functions
 source(here::here("Rfunctions", "parse_time.R"))
