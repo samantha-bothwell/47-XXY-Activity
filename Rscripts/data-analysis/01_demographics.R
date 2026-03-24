@@ -15,6 +15,8 @@ rm(list = ls())
 library(readr)
 library(table1)
 library(Hmisc)
+library(flextable)
+library(magrittr)
 
 
 ## Source functions
@@ -39,9 +41,10 @@ label(dems$percent_wear) <- "Percent Wear Time Across Usable Days"
 
 
 ## Print table1
-table1(~ calc_age + nih_ethnicity_race + pe_wt + pe_ht + pe_bmi + season + 
+tbl1 <- table1(~ calc_age + nih_ethnicity_race + pe_wt + pe_ht + pe_bmi + season + 
          n_days + percent_wear | group, 
        data = dems, overall = F, extra.col=list(`P-value`= pvalue), 
        render.continuous = my.render.cont)
 
-
+t1flex(tbl1) %>% 
+  save_as_docx(path=here::here("outputs", "Table1.docx"))
