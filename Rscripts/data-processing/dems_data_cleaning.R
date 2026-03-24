@@ -24,7 +24,7 @@ full <- read_csv(here::here("data-raw", "LTE_FullDATA_03172026.csv")) %>%
   ungroup()
 
 ## Load cleaned activity data
-sumdata_1min <- read_csv(here::here("data-clean", "Aggregated1min_cleaned.csv"))
+sumdata_day <- read_csv(here::here("data-clean", "Nonaggregated1min_cleaned.csv"))
 mvpa <- read_csv(here::here("data-clean", "LTE_METSandMVPA.csv"))
 
 ## Clean dems 
@@ -56,6 +56,21 @@ dems_clean <- full %>%
   # Select variables we're interested in 
   dplyr::select(pid, calc_age, group, nih_ethnicity_race, pe_wt, pe_ht, pe_bmi, vo2_max_ml_kg_min, totalsedentarytimem,
                 ad_date, ad_time, ad_q7, fat_ad_t, fat_ped_t, fat_pp_t, sleep_ped_t, sleep_ad_t, sleep_pp_t)
+
+
+## Categorize time period of data collection
+act_summary <- sumdata_day %>% 
+  # Determine if collection was school-year or summer
+  mutate(month = month(date), 
+         season = ifelse(month %in% c(1:5, 9:12), "School Year", "Summer")) %>% 
+  # summarize # of days of wear and % wear time
+  group_by(ID) %>% 
+  summarise(season = season[1], 
+            n_days = length(unique(date)), 
+            percent_wear = (n()/(n_days*1440))*100)
+  
+## Add variables to dems_clean
+dems_clean <- merge(dems_clean, act_summary, by.x = "pid", by.y = "ID")
 
 
 write_csv(dems_clean, here::here("data-clean", "identifiable", "Demographics.csv"))
