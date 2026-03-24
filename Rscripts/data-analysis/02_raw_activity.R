@@ -15,6 +15,7 @@ rm(list = ls())
 library(readr)
 library(ggplot2)
 
+
 ## Load data 
 sumdata_day <- read_csv(here::here("data-clean", "Nonaggregated1min_cleaned.csv"))
 sumdata_1min <- read_csv(here::here("data-clean", "Aggregated1min_cleaned.csv"))
@@ -22,7 +23,7 @@ sumdata_1min <- read_csv(here::here("data-clean", "Aggregated1min_cleaned.csv"))
 
 ### Multiple Days Within Individual 
 mets <- ggplot(sumdata_day, aes(x = index, y = met_minute, group = paste0(ID, date), color = group)) + 
-  stat_smooth(geom="line", se = F, alpha = 0.1, size = 0.8, span = 1.2) + 
+  stat_smooth(geom="line", se = F, alpha = 0.1, size = 0.8) + 
   theme_bw() + 
   geom_smooth(aes(x = index, y = met_minute, group = group, color = group), size = 2) + 
   scale_x_continuous(breaks = c(0, 182, 362, 542, 722, 902, 1082, 1262, 1442), 

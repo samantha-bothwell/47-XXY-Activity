@@ -103,7 +103,7 @@ where
 
 \begin{itemize}
   \item[] $\beta_0(t)$ is the smoothed intercept
-  \item[] $\beta_{group}(t)$ is the smoothed cofficient for the difference between groups
+  \item[] $\beta_{group}(t)$ is the smoothed coefficient for the difference between groups
   \item[] $\beta_i(t)$ is the subject-specific random functional intercept
   \item[] $\epsilon_i(t)$ is the residual error
 \end{itemize}
@@ -155,7 +155,6 @@ sumdata_15min$Avg_StepCount_log <- log1p(sumdata_15min$Avg_StepCount)
 
 fit_15min <- gam(
   Avg_StepCount ~ s(index, bs = "cc") + s(index, by = group, bs = "cc"),
-  #family = tw(), # estimates the ML inside GAM
   data = sumdata_15min, 
   method = "REML"
 )
