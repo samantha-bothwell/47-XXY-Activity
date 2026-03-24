@@ -1,1 +1,5 @@
 
+Klinefelter syndrome (KS), 47,XXY, affects 1 in 600 males and is characterized by an additional X chromosome. Men with KS have altered testicular development, deficient testosterone levels, and infertility. They are less physically active than other men, have higher BMIs on average, and report higher levels of fatigue. However, little research has explored the relationship between sleep and activity in KS. This analysis analyzes differences in activity and sleep outcomes between KS cases and non-KS age- and BMI-matched controls.     
+
+KS males and non-KS controls aged 15 - 27 were recruited into the Lipids to Energy (LTE) clinical trial. Groups were age- and BMI- matched. Participants wore ActiGraph accelerometers and ActiWare sleep watches for one continuous week while completing daily surveys on activity, sleep, and diet. ActiGraph accelerometers monitor activity including measures of body position and movement. ActiWare sleep watches monitor sleep and wake time as well as light exposure.  
+
