@@ -64,7 +64,7 @@ pvalue <- function(x, ...) {
 my.render.cont <- function(x) {
   with(stats.apply.rounding(stats.default(x), digits=3), {
     c("", 
-      "Mean &plusmn; SD" = sprintf("%s &plusmn; %s", MEAN, SD),
+      "Mean ± SD" = sprintf("%s ± %s", MEAN, SD),
       "Median [IQR]" = sprintf("%s [%s, %s]", MEDIAN, Q1, Q3))
   })
 }
