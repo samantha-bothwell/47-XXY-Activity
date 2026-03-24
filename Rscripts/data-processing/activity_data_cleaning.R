@@ -65,6 +65,9 @@ for (i in seq_along(files)) {
   ## Filter out nonwear
   pt_clean <- pt_dat %>%
     filter(nonwear_time_s == 0) %>%
+    # remove first and last dates 
+    filter(date != min(date)) %>% 
+    filter(date != max(date)) %>% 
     # Only keep days with >= 70% wear at 15s epochs (5760/day)
     group_by(date) %>%
     filter(n() >= 1440 * 4 * 0.7) %>%
@@ -81,27 +84,29 @@ for (i in seq_along(files)) {
     group_by(date, minute) %>%
     summarise(step_count = sum(.data$step_count, na.rm = TRUE),
               activity_score = sum(.data$activity_score_met_s, na.rm = TRUE),
+              met_minute = activity_score/60,
               .groups = "drop") %>%
     mutate(ID = id) %>%
-    select(minute, date, step_count, activity_score, ID)
+    select(minute, date, step_count, activity_score, met_minute, ID)
   
   ## Summarize 1 minute level data across all days
   pt_minute <- pt_day %>%
     group_by(minute) %>%
     summarise(avg_step_count = mean(step_count, na.rm = TRUE),
               avg_activity_score = mean(activity_score, na.rm = TRUE),
+              avg_met_minute = avg_activity_score/60,
               .groups = "drop") %>%
     mutate(ID = id) %>%
-    select(minute, avg_step_count, avg_activity_score, ID)
+    select(minute, avg_step_count, avg_activity_score, avg_met_minute, ID)
   
-  ## Summarize 15 minute level data across all days
+  ## Summarize 15 minute level data within all days
   pt_15min <- pt_clean %>%
     # summarize at the 15 minute level within days
     group_by(date, min15) %>%
     summarise(step_count = sum(.data$step_count, na.rm = TRUE),
               activity_score = sum(.data$activity_score_met_s, na.rm = TRUE),
               .groups = "drop") %>%
-    # average at the 15 minute level across days
+    # # average at the 15 minute level across days
     group_by(min15) %>%
     summarise(avg_step_count = mean(step_count, na.rm = TRUE),
               avg_activity_score = mean(activity_score, na.rm = TRUE),
@@ -125,8 +130,6 @@ for (i in seq_along(files)) {
               mvpa_time = sum(mets>=3, na.rm = T), 
               n = n(), .groups = "drop") %>%
     ungroup() %>% 
-    # Require wear at least 50% of the time 
-    filter(n > 1440*0.5) %>% 
     mutate(index = 1:length(minute)) %>% 
     # List ID 
     mutate(ID = id)

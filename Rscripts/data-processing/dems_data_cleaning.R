@@ -39,7 +39,7 @@ dems_clean <- full %>%
   mutate(pid = gsub("z", "", pid)) %>% 
   # Filter to only IDs within the activity summary data
   mutate(pid = as.character(pid)) %>% 
-  filter(pid %in% sumdata_1min$ID) %>% 
+  filter(pid %in% sumdata_day$ID) %>% 
   # Recode demographic variables 
   mutate(group = factor(group, levels = c(1, 0, 2), labels = c("KS Case", "Non-KS Control", "P-Value")), 
          nih_ethnicity_race = case_when(race_eth_new___4 == 1 ~ "Hispanic/Latinx", 
@@ -72,8 +72,9 @@ act_summary <- sumdata_day %>%
 ## Add variables to dems_clean
 dems_clean <- merge(dems_clean, act_summary, by.x = "pid", by.y = "ID")
 
-
 write_csv(dems_clean, here::here("data-clean", "identifiable", "Demographics.csv"))
+
+
 
 ## Clean self reported activity
 sr_act <- full %>% 

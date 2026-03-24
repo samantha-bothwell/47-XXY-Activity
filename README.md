@@ -31,3 +31,17 @@ Data were extracted from ActivPal in but summarized within minutes.
 
 Entries where the watch was indicated to not have been worn were
 removed. Only days with \>70% of wear time were included.
+
+## Statistical Methods
+
+We model minute-level step count data using a functional regression
+framework (function-on-scalar regression) with subject-specific random
+functional intercepts.
+
+Let $Y_i(t)$ denote the step count for subject $i = 1, ..., N$ at time
+$t$ (15 minute interval of the day). The mean structure was modeled with
+smooth functions of time and group differences:
+
+$$Y_i(t) = \beta_0(t) + \beta_{group}(t) \textbf{1}_{group = KS \hspace{1mm} Case} + b_i(t) + \epsilon_i(t)$$,
+
+where
