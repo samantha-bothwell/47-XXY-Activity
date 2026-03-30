@@ -14,6 +14,11 @@ rm(list = ls())
 ## Libraries 
 library(readr)
 library(ggplot2)
+library(scales)
+library(dplyr)
+library(tidyr)
+library(mgcv)
+library(purrr)
 
 
 ## Load data 
@@ -21,11 +26,22 @@ sumdata_day <- read_csv(here::here("data-clean", "Nonaggregated1min_cleaned.csv"
 sumdata_1min <- read_csv(here::here("data-clean", "Aggregated1min_cleaned.csv"))
 
 
+## Smooth individual data 
+smooth_data <- sumdata_day %>%
+  group_by(ID, date) %>%
+  nest() %>%
+  mutate(fit = map(data, ~ {gam(met_minute ~ s(index, bs = "cs"), data = ., method = "REML")}),
+    preds = map2(data, fit, ~ {tibble(index = .$index,
+                                      yhat = pmax(predict(.y, newdata = .x), 1))})) %>%
+  select(ID, date, preds) %>%
+  unnest(preds)
+sumdata_day$yhat <- smooth_data$yhat
+
 ### Multiple Days Within Individual 
-mets <- ggplot(sumdata_day, aes(x = index, y = met_minute, group = paste0(ID, date), color = group)) + 
-  stat_smooth(geom="line", se = F, alpha = 0.1, size = 0.8) + 
+mets <- ggplot(sumdata_day, aes(x = index, group = paste0(ID, date), color = group)) + 
+  geom_line(aes(y = yhat), alpha = 0.1, size = 0.8) + 
   theme_bw() + 
-  geom_smooth(aes(x = index, y = met_minute, group = group, color = group), size = 2) + 
+  geom_smooth(aes(y = met_minute, group = group), size = 2) + 
   scale_x_continuous(breaks = c(0, 182, 362, 542, 722, 902, 1082, 1262, 1442), 
                      labels = c("Midnight", "3 am", "6 am", "9 am", "Noon", "3 pm", "6 pm", 
                                 "9 pm", "Midnight")) + 
