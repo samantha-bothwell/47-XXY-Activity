@@ -17,17 +17,21 @@ library(dplyr)
 library(tidyr)
 library(lubridate)
 
-## Demographics data
+
+## Load full LTE dataset
 full <- read_csv(here::here("data-raw", "LTE_FullDATA_03172026.csv")) %>% 
   group_by(pid) %>% 
   fill(group, .direction = "downup") %>% 
   ungroup()
-
 ## Load cleaned activity data
 sumdata_day <- read_csv(here::here("data-clean", "Nonaggregated1min_cleaned.csv"))
 mvpa <- read_csv(here::here("data-clean", "LTE_METSandMVPA.csv"))
 
-## Clean dems 
+
+
+#####
+## Clean demographic table variables 
+#####
 dems_clean <- full %>% 
   # filter to only screening arm for demographics
   filter(redcap_event_name == "screening_arm_1") %>% 
@@ -114,57 +118,27 @@ model_cs <- lme(
 
 summary(model_cs)
 
-#dems_clean$avg_step <- daily_sum$Avg_StepCount[match(dems_clean$pid, daily_sum$ID)]
 
 
-# cor <- round(cor.test(dems_clean$vo2_max_ml_kg_min, dems_clean$avg_step)$estimate, 1)
-# low <- round(cor.test(dems_clean$vo2_max_ml_kg_min, dems_clean$avg_step)$conf.int[1], 1)
-# high <- round(cor.test(dems_clean$vo2_max_ml_kg_min, dems_clean$avg_step)$conf.int[2], 1)
-# p <- cor.test(dems_clean$vo2_max_ml_kg_min, dems_clean$avg_step)$p.value
-# p <- ifelse(p < 0.001, "p < 0.001", paste("p =", round(p, 3)))
-# 
-# 
-# cor2 <- round(cor.test(dems_clean$vo2_max_ml_kg_min, dems_clean$totalsedentarytimem)$estimate, 1)
-# low2 <- round(cor.test(dems_clean$vo2_max_ml_kg_min, dems_clean$totalsedentarytimem)$conf.int[1], 1)
-# high2 <- round(cor.test(dems_clean$vo2_max_ml_kg_min, dems_clean$totalsedentarytimem)$conf.int[2], 1)
-# p2 <- cor.test(dems_clean$vo2_max_ml_kg_min, dems_clean$totalsedentarytimem)$p.value
-# p2 <- ifelse(p2 < 0.001, "p < 0.001", paste("p =", round(p2, 3)))
-
-
-# coef = 0.044
-# 
-# ggplot(dems_clean[dems_clean$group == "KS Case",], aes(x = vo2_max_ml_kg_min, y = avg_step)) + 
-#   geom_point(size = 3, color = "coral1") + 
-#   geom_smooth(method = "lm", color = "coral1") +
-#   geom_point( aes(y=(totalsedentarytimem -300)/ coef), size = 3, color = "deepskyblue3") + 
-#   geom_smooth(aes(y=(totalsedentarytimem -300)/ coef), method = "lm", color = "deepskyblue3") +
-#   scale_y_continuous(name = "Average Daily Step Count", limits = c(-1500, 11500), 
-#                        breaks = seq(0, 10000, 2500), 
-#                      sec.axis = sec_axis(~.*coef + 300, name="Average Daily Sedentary Time (Minutes)")) + 
-#   theme_bw() + theme(text = element_text(size = 20)) + xlab("VO2 Max (ml/kg/min)") + 
-#   theme(text = element_text(size = 22), 
-#         legend.position = "bottom",
-#         axis.title.y = element_text(color = "coral3"),  # First Y-axis title color
-#         axis.text.y = element_text(color = "coral3"),   # First Y-axis text color
-#         axis.title.y.right = element_text(color = "deepskyblue4"),  # Second Y-axis title color
-#         axis.text.y.right = element_text(color = "deepskyblue4")) +
-#   annotate("richtext", x = 29, y = 11000, 
-#            label = paste0("<b>r = ", cor, "<br>", p, "</b>"), 
-#            size = 7, color = "coral3", fill = NA, label.color = NA) + 
-#   annotate("richtext", x = 29, y = 0, 
-#            label = paste0("<b>r = ", cor2, "<br>", p2, "</b>"), 
-#            size = 7, color = "deepskyblue4", fill = NA, label.color = NA)
-
-
-## Clean sleep data 
-dems_sleep <- dems %>% 
+#####
+## Clean sleep data
+#####
+dems_sleep <- full %>% 
   # Select variables of interest 
-  dplyr::select(pid, avg_get_up_time, avg_bedtime, avg_total_sleep_time, group) %>% 
+  dplyr::select(pid, redcap_event_name, vc_date, vc_age, avg_get_up_time, avg_bedtime, avg_total_sleep_time, 
+                contains("sleep_ped_"), contains("sleep_ad_"), contains("sleep_pp_"), group) %>% 
+  # Fill all variables
+  group_by(pid) %>% 
+  fill(c(avg_get_up_time, avg_bedtime, avg_total_sleep_time), .direction = "downup") %>% 
+  ungroup() %>% 
+  # filter to visits 1 and 2
+  filter(redcap_event_name %in% c("visit_1_arm_1", "visit_2_arm_1")) %>% 
+  filter(!is.na(vc_date)) %>% 
   # Clean bed time 
   mutate(avg_get_up_time = strptime(avg_get_up_time, format="%H:%M:%S"),
-         total_seconds = as.numeric(avg_get_up_time$hour) * 3600 + as.numeric(avg_get_up_time$min) * 60 + 
+         getup_seconds = as.numeric(avg_get_up_time$hour) * 3600 + as.numeric(avg_get_up_time$min) * 60 + 
            as.numeric(avg_get_up_time$sec),
-         total_hours = as.numeric(avg_get_up_time$hour) + as.numeric(avg_get_up_time$min)/60 + 
+         getup_hours = as.numeric(avg_get_up_time$hour) + as.numeric(avg_get_up_time$min)/60 + 
            as.numeric(avg_get_up_time$sec)/3600,
          avg_bedtime = strptime(avg_bedtime, format="%H:%M:%S"),
          bedtime_seconds = as.numeric(avg_bedtime$hour) * 3600 + as.numeric(avg_bedtime$min) * 60 + 
@@ -173,17 +147,17 @@ dems_sleep <- dems %>%
            as.numeric(avg_bedtime$sec)/3600,
          bedtime_hours = ifelse(bedtime_hours < 4, 24 + bedtime_hours, bedtime_hours),
          avg_total_sleep_time = strptime(avg_total_sleep_time, format="%H:%M:%S"),
-         total_seconds_sleeptime = as.numeric(avg_total_sleep_time$hour) * 3600 + 
+         sleeptime_seconds = as.numeric(avg_total_sleep_time$hour) * 3600 + 
            as.numeric(avg_total_sleep_time$min) * 60 + 
-           as.numeric(avg_total_sleep_time$sec))
+           as.numeric(avg_total_sleep_time$sec),
+         sleeptime_hours = as.numeric(avg_total_sleep_time$hour) + 
+           as.numeric(avg_total_sleep_time$min)/60 + 
+           as.numeric(avg_total_sleep_time$sec)/3600) %>% 
+  # Categorize group
+  mutate(group = factor(group, levels = c(1, 0), labels = c("KS Case", "Non-KS Control")))
 
-summary(dems_sleep$total_hours[dems_sleep$group == 1 & dems_sleep$season == "School-Year"])
-summary(dems_sleep$total_hours[dems_sleep$group == 0 & dems_sleep$season == "School-Year"])
-#kruskal.test(total_hours ~ as.character(group), data = dems_sleep[dems_sleep$season == "School-Year",])
+write_csv(dems_sleep, here::here("data-clean", "identifiable", "Sleep.csv"))
 
-summary(dems_sleep$total_hours[dems_sleep$group == 1 & dems_sleep$season == "Summer"])
-summary(dems_sleep$total_hours[dems_sleep$group == 0 & dems_sleep$season == "Summer"])
-#kruskal.test(total_hours ~ as.character(group), data = dems_sleep[dems_sleep$season == "Summer",])
 
 
 ###### Format Continuous Values in tables
