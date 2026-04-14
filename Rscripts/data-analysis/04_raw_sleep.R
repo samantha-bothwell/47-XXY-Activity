@@ -17,10 +17,12 @@ library(ggplot2)
 library(dplyr)
 library(tidyr)
 library(gridExtra)
+library(broom)
 
 
 ## Load data 
 dems_sleep <- read_csv(here::here("data-clean", "identifiable", "Sleep.csv"))
+sumdata_day <- read_csv(here::here("data-clean", "Nonaggregated1min_cleaned.csv"))
 
 #####
 ## Plot sleep time variables
@@ -127,8 +129,87 @@ pp_plot <- ggplot(dems_sleep, aes(x = group, y = sleep_pp_t, fill = group)) +
 
 
 ## Organize plots 
-promis <- grid.arrange(ped_plot, ad_plot, pp_plot, ncol = 3)
+promis <- grid.arrange(ped_plot, ad_plot, ncol = 2)
 
-ggsave(filename = here::here("outputs", "sleep_promis.png"), plot = promis, width = 12, height = 5, units = "in")
+ggsave(filename = here::here("outputs", "sleep_promis.png"), plot = promis, width = 10, height = 5, units = "in")
+
+
+
+#####
+## Activity and Sleep Correlation
+#####
+## Summarize Avg Daily METs 
+avg_mets <- sumdata_day %>% 
+  group_by(date, ID, group) %>% 
+  summarise(mean_mets = mean(met_minute, na.rm = T)) %>% 
+  ungroup() %>% group_by(ID, group) %>% 
+  summarise(mean_mets = mean(mean_mets, na.rm = T))
+# Add mean_mets to dems_sleep
+dems_sleep$mean_mets <- avg_mets$mean_mets[match(dems_sleep$pid, avg_mets$ID)]
+
+
+## Ped PROMIS + METS
+# Linear Regression
+lm_stats <- dems_sleep %>%
+  group_by(group) %>%
+  do(tidy(lm(sleep_ped_t ~ mean_mets, data = .))) %>%
+  filter(term == "mean_mets") %>%
+  mutate(label = paste0(group,
+                        ": β = ", round(estimate/10, 2), ", ",
+                        ifelse(p.value < 0.001, "p < 0.001", paste0("p = ", round(p.value, 3)))))
+label = paste0(lm_stats$label[1], "\n", lm_stats$label[2])
+
+# Plot
+ped_mets <- ggplot(dems_sleep, aes(x = mean_mets, sleep_ped_t, color = group)) + 
+  geom_point(size = 3) + geom_smooth(method = "lm") + 
+  theme_bw() + 
+  theme(text = element_text(size = 20), 
+        legend.position = "none") + 
+  scale_color_manual(values = c("#369dd9", "#6D6D6D")) + 
+  labs(x = "Average Daily METs", y = "PROMIS Pediatric T-Score") +
+  scale_y_continuous(limits = c(35, 75), breaks = seq(40, 70, by = 10)) + 
+  annotate("label", x = 1.35, y = 40, label = label, hjust = 0, size = 4.2, 
+           fill = "white", color = "black", label.size = 0.4)
+
+
+
+## Adult PROMIS + METS
+# Linear Regression
+lm_stats <- dems_sleep %>%
+  group_by(group) %>%
+  do(tidy(lm(sleep_ad_t ~ mean_mets, data = .))) %>%
+  filter(term == "mean_mets") %>%
+  mutate(label = paste0(group,
+                        ": β = ", round(estimate/10, 2), ", ",
+                        ifelse(p.value < 0.001, "p < 0.001", paste0("p = ", round(p.value, 3)))))
+label = paste0(lm_stats$label[1], "\n", lm_stats$label[2])
+
+# Plot
+ad_mets <- ggplot(dems_sleep, aes(x = mean_mets, sleep_ad_t, color = group)) + 
+  geom_point(size = 3) + geom_smooth(method = "lm") + 
+  theme_bw() + 
+  theme(text = element_text(size = 20), 
+        legend.position = "bottom") + 
+  scale_color_manual(values = c("#369dd9", "#6D6D6D")) + 
+  labs(color = "", x = "Average Daily METs", y = "PROMIS Adult T-Score") +
+  scale_y_continuous(limits = c(35, 75), breaks = seq(40, 70, by = 10)) + 
+  annotate("label", x = 1.35, y = 40, label = label, hjust = 0, size = 4.2, 
+           fill = "white", color = "black", label.size = 0.4)
+
+
+## Pull legend for combined plot 
+get_legend <- function(plot) {
+  g <- ggplotGrob(plot)
+  legend <- g$grobs[sapply(g$grobs, function(x) x$name) == "guide-box"]
+  legend[[1]]
+}
+legend <- get_legend(ad_mets)
+ad_mets <- ad_mets + theme(legend.position = "none")
+
+
+
+sleep_mets <- grid.arrange(arrangeGrob(ped_mets, ad_mets, ncol = 2), legend, ncol = 1, heights = c(10, 1))
+
+ggsave(filename = here::here("outputs", "sleep_mets.png"), plot = sleep_mets, width = 10, height = 5, units = "in")
 
 
