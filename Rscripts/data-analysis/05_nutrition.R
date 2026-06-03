@@ -62,17 +62,20 @@ ggsave(filename = here::here("outputs", "macronutrients.png"), plot = macro_plot
 
 
 cals_ener <- nutrition %>% 
-  dplyr::select(pid, group, calories, tee, cal_percent_tee) %>% 
+  mutate(calories_per_lean_mass = calories / (dxa_lean_mass/1000)) %>% 
+  dplyr::select(pid, group, calories, tee, cal_percent_tee, calories_per_lean_mass) %>% 
   pivot_longer(!c(pid, group), names_to = "variable", values_to = "value") %>% 
-  mutate(variable = factor(variable, levels = c("calories", "tee", "cal_percent_tee"),
-                                labels = c("Total Calories", "Total Energy Expenditure", 
-                                           "Total Calories \nas a % of \nTotal Energy Expenditure")))
+  mutate(variable = factor(variable, levels = c("calories", "tee", "cal_percent_tee", 
+                                                "calories_per_lean_mass"),
+                                labels = c("Total Calories (cals)", "Total Energy Expenditure (cals)", 
+                                           "Total Calories as a % of \nTotal Energy Expenditure (%)", 
+                                           "Calories Per Lean Mass \n(cals/kg)")))
 
 
 energy_calories <- ggplot(cals_ener, aes(y = value, fill = group, x = group)) + 
   geom_boxplot() + 
   stat_compare_means(method = "wilcox.test", label = "p.signif", label.y.npc = "top", 
-                     vjust = 0.5, label.x.npc = 0.4, hide.ns = T, size = 6) +
+                     vjust = 0.7, label.x.npc = 0.4, hide.ns = T, size = 6) +
   labs(x = "", y = "", fill = "") + 
   theme_bw(base_size = 16) + 
   theme(legend.position = "bottom", axis.ticks.x = element_blank(),
@@ -80,6 +83,6 @@ energy_calories <- ggplot(cals_ener, aes(y = value, fill = group, x = group)) +
   scale_fill_manual(values = c("#369dd9", "#6D6D6D")) + 
   facet_wrap(~variable, scales = "free")
 
-ggsave(filename = here::here("outputs", "calories_energy.png"), plot = energy_calories, width = 9, height = 5, units = "in")
+ggsave(filename = here::here("outputs", "calories_energy.png"), plot = energy_calories, width = 7, height = 7, units = "in")
 
   
