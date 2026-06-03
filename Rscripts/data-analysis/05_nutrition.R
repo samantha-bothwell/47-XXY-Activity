@@ -69,8 +69,10 @@ cals_ener <- nutrition %>%
                                            "Total Calories \nas a % of \nTotal Energy Expenditure")))
 
 
-energy_calories <- ggplot(cals_ener, aes(y = value, fill = group)) + 
+energy_calories <- ggplot(cals_ener, aes(y = value, fill = group, x = group)) + 
   geom_boxplot() + 
+  stat_compare_means(method = "wilcox.test", label = "p.signif", label.y.npc = "top", 
+                     vjust = 0.5, label.x.npc = 0.4, hide.ns = T, size = 6) +
   labs(x = "", y = "", fill = "") + 
   theme_bw(base_size = 16) + 
   theme(legend.position = "bottom", axis.ticks.x = element_blank(),
