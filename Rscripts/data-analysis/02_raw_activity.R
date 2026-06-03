@@ -25,6 +25,7 @@ library(ggpubr)
 ## Load data 
 sumdata_day <- read_csv(here::here("data-clean", "Nonaggregated1min_cleaned.csv"))
 sumdata_1min <- read_csv(here::here("data-clean", "Aggregated1min_cleaned.csv"))
+redcap <- read_csv(here::here("data-raw", "LTE_FullDATA_03172026.csv"))
 
 
 ## Smooth individual data 
@@ -99,36 +100,47 @@ sr_activity <- redcap %>%
   mutate(rx_activitylevel = factor(rx_activitylevel, levels = c(1:5), 
                                    labels = c("Sedentary", "Lightly Active", "Moderately Active", 
                                               "Very Active", "Extremely Active")), 
+         rx_activitylevel = ordered(rx_activitylevel, 
+                                    levels = c("Extremely Active", "Very Active", "Moderately Active", 
+                                               "Lightly Active", "Sedentary")),
          group = factor(group, levels = c(1, 0), labels = c("KS Case", "Non-KS Control"))) %>% 
   # Keep one record per person 
   group_by(pid) %>% slice(1)
 
 sr_activity_sum <- sr_activity %>% 
   group_by(group, rx_activitylevel) %>% summarise(N = n()) %>% ungroup() %>% 
-  group_by(group) %>% mutate(percent = (N/sum(N))*100) %>% ungroup()
+  group_by(group) %>% 
+  mutate(percent = (N/sum(N))*100, 
+         label = paste0(N, " (", round(percent, 1), "%)")) %>% 
+  ungroup()
 
 
 sr_plot <- ggplot(sr_activity_sum, aes(x = percent, y = group, fill = rx_activitylevel)) + 
   geom_bar(stat = "identity", position = "stack") + 
-  scale_fill_manual(values = c("#fabec0", "#fa8e92", "#fa555b", "#d6020a")) + 
+  geom_text(aes(label = label), position = position_stack(vjust = 0.5), size = 6) +
+  scale_fill_manual(values = c("#d6020a", "#fa555b", "#fa8e92", "#fabec0")) + 
   theme_bw(base_size = 20) + 
   theme(legend.position = "bottom") + 
-  #scale_x_continuous(labels = percent_format()) +
+  guides(fill = guide_legend(reverse = TRUE)) +
   labs(x = "Percent", y = "", 
        fill = "Self-Reported Activity Level") 
 
-ggsave(filename = here::here("outputs", "sr_vs_actual_activity.png"), plot = sr_plot, width = 15, height = 7, units = "in")
+ggsave(filename = here::here("outputs", "sr_activity.png"), plot = sr_plot, width = 15, height = 7, units = "in")
 
 
 
 ### Self-Report vs Actual
 avg_mets$sr_act <- sr_activity$rx_activitylevel[match(avg_mets$ID, sr_activity$pid)]
+avg_mets$sr_act <- ordered(avg_mets$sr_act, 
+                           levels = c("Sedentary", "Lightly Active", "Moderately Active", 
+                                      "Very Active", "Extremely Active"))
 
 ggplot(avg_mets %>% filter(!is.na(sr_act)), aes(x = sr_act, y = mean_mets, fill = sr_act)) + 
   geom_boxplot() + 
   scale_fill_manual(values = c("#fabec0", "#fa8e92", "#fa555b", "#d6020a")) + 
   theme_bw(base_size = 20) + 
   theme(legend.position = "none") + 
+  guides(fill = guide_legend(reverse = TRUE)) +
   labs(x = "Self-Reported Activity", y = "Average Daily METS") + 
   facet_wrap(~group, ncol = 1)
 
@@ -147,7 +159,8 @@ pvals <- avg_mets %>%
 
 
 
-sr_vs_actual <- ggplot(avg_mets %>% filter(!is.na(sr_act)), aes(x = group, y = mean_mets, fill = sr_act)) + 
+sr_vs_actual <- ggplot(avg_mets %>% 
+                         filter(!is.na(sr_act)), aes(x = group, y = mean_mets, fill = sr_act)) + 
   geom_boxplot() + 
   geom_jitter(fill = "white", pch = 21, width = 0.15, height = 0, size = 3) + 
   scale_fill_manual(values = c("#fabec0", "#fa8e92", "#fa555b", "#d6020a")) + 
