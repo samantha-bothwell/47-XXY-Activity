@@ -61,8 +61,23 @@ macro_plot <- ggplot(macros, aes(x = macronutrient, y = percent, fill = group)) 
 ggsave(filename = here::here("outputs", "macronutrients.png"), plot = macro_plot, width = 8, height = 6, units = "in")
 
 
+cals_ener <- nutrition %>% 
+  dplyr::select(pid, group, calories, tee, cal_percent_tee) %>% 
+  pivot_longer(!c(pid, group), names_to = "variable", values_to = "value") %>% 
+  mutate(variable = factor(variable, levels = c("calories", "tee", "cal_percent_tee"),
+                                labels = c("Total Calories", "Total Energy Expenditure", 
+                                           "Total Calories \nas a % of \nTotal Energy Expenditure")))
 
 
-  
-  
+energy_calories <- ggplot(cals_ener, aes(y = value, fill = group)) + 
+  geom_boxplot() + 
+  labs(x = "", y = "", fill = "") + 
+  theme_bw(base_size = 16) + 
+  theme(legend.position = "bottom", axis.ticks.x = element_blank(),
+        axis.text.x = element_blank()) + 
+  scale_fill_manual(values = c("#369dd9", "#6D6D6D")) + 
+  facet_wrap(~variable, scales = "free")
+
+ggsave(filename = here::here("outputs", "calories_energy.png"), plot = energy_calories, width = 9, height = 5, units = "in")
+
   
