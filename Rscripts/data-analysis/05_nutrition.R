@@ -18,6 +18,7 @@ library(dplyr)
 library(tidyr)
 library(gridExtra)
 library(broom)
+library(lme4)
 
 
 ## Load data
@@ -26,8 +27,42 @@ full_data <- read_csv(here::here("data-raw", "LTE_FullDATA_03172026.csv"))
 ## Subset nutrition
 nutrition <- full_data %>% 
   # select variables of interest 
-  dplyr::select(pid, redcap_event_name, fats, carbs, protein, calories, tee, cal_percent_tee)
+  dplyr::select(pid, redcap_event_name, redcap_repeat_instrument, redcap_repeat_instance, fats, carbs, protein, 
+                calories, tee, cal_percent_tee, dxa_lean_mass, group) %>% 
+  # fill dxa_lean_mass 
+  group_by(pid) %>% 
+  fill(dxa_lean_mass, .direction = "down") %>% 
+  fill(group, .direction = "down") %>% 
+  ungroup() %>% 
+  # filter to only food logs 
+  filter(redcap_repeat_instrument == "food_logs_summaries") %>% 
+  # Code group
+  mutate(group = factor(group, levels = c(1, 0), labels = c("KS Case", "Non-KS Control"))) %>% 
+  # Aggregate within individual 
+  group_by(pid, group) %>% 
+  summarise(across(c(fats, carbs, protein, calories, tee, cal_percent_tee, dxa_lean_mass), 
+                ~ mean(.x, na.rm = T))) %>% 
+  ungroup()
+
+## Make a macronutrients plot
+macros <- nutrition %>% 
+  dplyr::select(pid, group, fats, carbs, protein) %>% 
+  pivot_longer(!c(pid, group), names_to = "macronutrient", values_to = "percent") %>% 
+  mutate(macronutrient = factor(macronutrient, levels = c("carbs", "fats", "protein"),
+                                labels = c("Carbohydrates", "Fat", "Protein")))
   
+macro_plot <- ggplot(macros, aes(x = macronutrient, y = percent, fill = group)) + 
+  geom_boxplot() + 
+  labs(x = "Macronutrient", y = "Average Daily Percent Intake", fill = "") + 
+  theme_bw(base_size = 16) + 
+  theme(legend.position = "bottom") + 
+  scale_fill_manual(values = c("#369dd9", "#6D6D6D"))
+
+ggsave(filename = here::here("outputs", "macronutrients.png"), plot = macro_plot, width = 8, height = 6, units = "in")
+
+
+
+
   
   
   
