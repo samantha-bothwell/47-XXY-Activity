@@ -23,13 +23,16 @@ library(lme4)
 
 ## Load data
 full_data <- read_csv(here::here("data-raw", "LTE_FullDATA_03172026.csv"))
+sumdata_day <- read_csv(here::here("data-clean", "Nonaggregated1min_cleaned.csv")) %>% 
+  mutate(ID = as.character(ID))
+
 
 ## Subset nutrition
 nutrition <- full_data %>% 
   # select variables of interest 
   dplyr::select(pid, redcap_event_name, redcap_repeat_instrument, redcap_repeat_instance, fats, carbs, protein, 
                 calories, tee, cal_percent_tee, dxa_lean_mass, group) %>% 
-  # fill dxa_lean_mass 
+  # fill variables 
   group_by(pid) %>% 
   fill(dxa_lean_mass, .direction = "down") %>% 
   fill(group, .direction = "down") %>% 
@@ -85,4 +88,107 @@ energy_calories <- ggplot(cals_ener, aes(y = value, fill = group, x = group)) +
 
 ggsave(filename = here::here("outputs", "calories_energy.png"), plot = energy_calories, width = 7, height = 7, units = "in")
 
+
+## Correlation with sleep
+sleep_cor <- full_data %>% 
+  dplyr::select(pid, group, sleep_ped_t, sleep_ad_t, calories, dxa_lean_mass) %>% 
+  # fill variables 
+  group_by(pid) %>% 
+  fill(dxa_lean_mass, .direction = "down") %>% 
+  fill(group, .direction = "down") %>% 
+  fill(sleep_ped_t, .direction = "updown") %>% 
+  fill(sleep_ad_t, .direction = "updown") %>% 
+  ungroup() %>% 
+  # filter out missing calories 
+  filter(!is.na(calories)) %>% 
+  # average calories and keep one row per person
+  group_by(pid) %>% 
+  mutate(calories = mean(calories, na.rm = T)) %>% 
+  slice(1) %>% 
+  ungroup() %>% 
+  # Code group
+  mutate(group = factor(group, levels = c(1, 0), labels = c("KS Case", "Non-KS Control")))
   
+# Peds
+lm_stats <- sleep_cor %>%
+  group_by(group) %>%
+  do(tidy(lm(sleep_ped_t ~ calories, data = .))) %>%
+  filter(term == "calories") %>%
+  mutate(label = paste0(group,
+                        ": β = ", round(estimate*100, 2), ", ",
+                        ifelse(p.value < 0.001, "p < 0.001", paste0("p = ", round(p.value, 3)))))
+label = paste0(lm_stats$label[1], "\n", lm_stats$label[2])
+  
+ped_sleep_cals <- ggplot(sleep_cor, aes(x = calories, y = sleep_ped_t, color = group)) + 
+  geom_point(size = 3) + geom_smooth(method = "lm") + 
+  theme_bw() + 
+  theme(text = element_text(size = 20), 
+        legend.position = "none") + 
+  scale_color_manual(values = c("#369dd9", "#6D6D6D")) + 
+  labs(x = "Average Daily Caloric Intake", y = "PROMIS Pediatric T-Score") +
+  scale_y_continuous(limits = c(35, 75), breaks = seq(40, 70, by = 10)) +
+  scale_x_continuous(limits = c(900, 3050), breaks = seq(1000, 3000, by = 500)) +
+  annotate("label", x = 1000, y = 40, label = label, hjust = 0, size = 4.2, 
+           fill = "white", color = "black", label.size = 0.4)
+
+ggsave(filename = here::here("outputs", "calories_peds_sleep.png"), plot = ped_sleep_cals, width = 10, height = 5, units = "in")
+
+
+
+# Adult
+lm_stats <- sleep_cor %>%
+  group_by(group) %>%
+  do(tidy(lm(sleep_ad_t ~ calories, data = .))) %>%
+  filter(term == "calories") %>%
+  mutate(label = paste0(group,
+                        ": β = ", round(estimate*100, 2), ", ",
+                        ifelse(p.value < 0.001, "p < 0.001", paste0("p = ", round(p.value, 3)))))
+label = paste0(lm_stats$label[1], "\n", lm_stats$label[2])
+
+ad_sleep_cals <- ggplot(sleep_cor, aes(x = calories, y = sleep_ad_t, color = group)) + 
+  geom_point(size = 3) + geom_smooth(method = "lm") + 
+  theme_bw() + 
+  theme(text = element_text(size = 20), 
+        legend.position = "none") + 
+  scale_color_manual(values = c("#369dd9", "#6D6D6D")) + 
+  labs(x = "Average Daily Caloric Intake", y = "PROMIS Adult T-Score") +
+  scale_y_continuous(limits = c(35, 75), breaks = seq(40, 70, by = 10)) +
+  scale_x_continuous(limits = c(900, 3050), breaks = seq(1000, 3000, by = 500)) +
+  annotate("label", x = 1000, y = 40, label = label, hjust = 0, size = 4.2, 
+           fill = "white", color = "black", label.size = 0.4)
+
+ggsave(filename = here::here("outputs", "calories_adult_sleep.png"), plot = ad_sleep_cals, width = 10, height = 5, units = "in")
+
+
+
+## Correlation with activity
+avg_mets <- sumdata_day %>% 
+  group_by(date, ID, group) %>% 
+  summarise(mean_mets = mean(met_minute, na.rm = T)) %>% 
+  ungroup() %>% group_by(ID, group) %>% 
+  summarise(mean_mets = mean(mean_mets, na.rm = T))
+
+sleep_cor$avg_mets <- avg_mets$mean_mets[match(sleep_cor$pid, avg_mets$ID)]
+
+lm_stats <- sleep_cor %>%
+  group_by(group) %>%
+  do(tidy(lm(avg_mets ~ calories, data = .))) %>%
+  filter(term == "calories") %>%
+  mutate(label = paste0(group,
+                        ": β = ", round(estimate*1000, 2), ", ",
+                        ifelse(p.value < 0.001, "p < 0.001", paste0("p = ", round(p.value, 3)))))
+label = paste0(lm_stats$label[1], "\n", lm_stats$label[2])
+
+act_cals <- ggplot(sleep_cor, aes(x = calories, y = avg_mets, color = group)) + 
+  geom_point(size = 3) + geom_smooth(method = "lm") + 
+  theme_bw() + 
+  theme(text = element_text(size = 20), 
+        legend.position = "none") + 
+  scale_color_manual(values = c("#369dd9", "#6D6D6D")) + 
+  labs(x = "Average Daily Caloric Intake", y = "Average Daily METS") +
+  #scale_y_continuous(limits = c(35, 75), breaks = seq(40, 70, by = 10)) +
+  scale_x_continuous(limits = c(900, 3050), breaks = seq(1000, 3000, by = 500)) +
+  annotate("label", x = 1000, y = 1.55, label = label, hjust = 0, size = 4.2, 
+           fill = "white", color = "black", label.size = 0.4)
+
+ggsave(filename = here::here("outputs", "calories_mets.png"), plot = act_cals, width = 10, height = 5, units = "in")
