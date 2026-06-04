@@ -60,16 +60,19 @@ crude_ests <- data.frame(group_hat,
                          sind = seq(1, 1440, by = 1))
 
 ## Make plots 
-ggplot(crude_ests, aes(x = sind, y = group_hat)) + 
+fda_mets_pct <- ggplot(crude_ests, aes(x = sind, y = group_hat)) + 
   geom_hline(yintercept = 0, color = "black", linetype = "dashed", size = 0.9) + 
   geom_ribbon(aes(x = sind, ymin = group_low, ymax = group_high), 
               fill = "blue", alpha = 0.2) +
   geom_line(size = 1)  + 
-  ylab("Estimated Difference in METs per Minute\n(KS Cases vs Non-KS Controls)") + 
-  ggtitle("Crude Model Functional Coefficient \nof METs per Minute") + theme_bw() +
-  scale_x_continuous(breaks = c(0, 12, 24, 36, 48, 60, 72, 84, 96), 
+  ylab("Percent Difference in Expected METs per Minute\n(KS Cases vs Non-KS Controls)") + 
+  ggtitle("Functional Percent Difference of METs per Minute") + theme_bw() +
+  scale_y_continuous(breaks = c(-0.1, -0.05, 0, 0.05), labels = c("-10%", "-5%", "0%", "5%")) + 
+  scale_x_continuous(breaks = c(0, 182, 362, 542, 722, 902, 1082, 1262, 1442), 
                      labels = c("Midnight", "3 am", "6 am", "9 am", "Noon", "3 pm", "6 pm", 
                                 "9 pm", "Midnight")) + 
-  xlab("") + theme(text = element_text(size = 16), plot.title = element_text(hjust = 0.5))
+  xlab("") + theme(text = element_text(size = 16), plot.title = element_text(hjust = 0.5)) + 
+  annotate("text", x = 200, y = 0.05, label = "Higher KS Case Activity", size = 5)  + 
+  annotate("text", x = 200, y = -0.1, label = "Lower KS Case Activity", size = 5)
 
-
+ggsave(filename = here::here("outputs", "fda_mets_pct.png"), plot = fda_mets_pct, width = 10, height = 7, units = "in")
