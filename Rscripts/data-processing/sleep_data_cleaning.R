@@ -18,6 +18,7 @@ library(dplyr)
 library(lubridate)
 library(janitor)
 library(purrr)
+library(zoo)
 
 ## Get names of all datasets 
 epochs_dir <- here::here("data-raw", "Sleep")
@@ -31,11 +32,27 @@ dems <- read_csv(here::here("data-raw", "LTE_FullDATA_03172026.csv")) %>%
   mutate(pid = gsub("z", "", pid))
 
 
+## Sleep Diaries
+sleep_diary <- read_csv(here::here("data-raw", "LTE_FullDATA_03172026.csv")) %>% 
+  # replace "z" in IDs
+  mutate(pid = gsub("z", "", pid)) %>% 
+  # keep only sleep logs
+  filter(redcap_repeat_instrument == "daily_sleep_log") %>% 
+  # keep only variables for validation 
+  dplyr::select(pid, sd_date, sd_q1, sd_q5) %>% 
+  # create a sleep date variable 
+  mutate(sleep_date = ifelse(as.character(sd_q1) < "05:00:00", sd_date, sd_date - 1), 
+         sleep_date = as.Date(sleep_date, origin = "1970-01-01")) %>% 
+  # rename variables 
+  rename(wake_date = sd_date, sleep_time = sd_q1, wake_time = sd_q5)
+
+
 
 ############ Data Processing 
 ## Initialize results dataframes
 res_day <- vector("list", length(files))
 res_1min <- vector("list", length(files))
+res_1min_agg <- vector("list", length(files))
 
 
 ## Loop over files and summarize data
@@ -52,10 +69,20 @@ for(i in seq_along(files)){
   ## Extract participant ID from path
   id <- substr(basename(fpath), 1, 3)
   
+  print(paste0("index = ", i, "; ID = ", id))
   
-  ## Manual exclusion of IDs 557 and 570 for lack of usable data
+  ## Get sleep validation 
+  sleep_val <- sleep_diary %>% 
+    filter(pid == id)
+  
+  ## Require date to be in diary for validation 
+  pt_dat <- pt_dat %>% 
+    mutate(date = as.Date(date, format = "%m/%d/%y")) %>% 
+    filter(date %in% c(sleep_val$wake_date, sleep_val$sleep_date))
+  
+  ## Manual exclusion for lack of usable data
   ## If there are no valid rows, skip
-  if (id %in% c("557", "570")) {
+  if (id %in% c("510", "518", "557", "562", "566", "570")) {
     warning("No valid data for ID ", id)
     next
   }
@@ -63,9 +90,7 @@ for(i in seq_along(files)){
   ## Day summaries 
   pt_day <- pt_dat %>% 
     group_by(date) %>% 
-    summarise(#asleep_time = length(Sleep.Wake[Sleep.Wake == 0] == TRUE),
-              #awake_time = length(Sleep.Wake[Sleep.Wake == 1] == TRUE), 
-              asleep_time = length(interval_status[interval_status == "REST-S"] == TRUE),
+    summarise(asleep_time = length(interval_status[interval_status == "REST-S"] == TRUE),
               awake_time = length(interval_status[interval_status %in% c("ACTIVE", "REST")] == TRUE), 
               prop_asleep = asleep_time/1440, 
               prop_awake = awake_time/1440) %>% 
@@ -87,38 +112,73 @@ for(i in seq_along(files)){
   
   
   ## Summarize minute level data across days 
-  pt_minute <- pt_dat %>% 
-    # Save minute and date
-    mutate(#time = format(strptime(time, "%H:%M:%S %p"), format = "%H:%M:%S"), 
-           minute = as.numeric(substr(time, 1, 2))*60 + as.numeric(substr(time, 4, 5))) %>%
-    # Filter to days in the summary dataset 
-    mutate(date = as.Date(date, format = "%m/%d/%y")) %>% 
-    filter(date %in% pt_day$date) %>% 
-    # Fill in missing minutes 
-    group_by(date) %>% 
-    complete(minute = 0:1439) %>%
-    # Mean across days 
-    group_by(minute) %>% 
-    summarise(avg_white_light = mean(white_light, na.rm = T), 
-              avg_red_light = mean(red_light, na.rm = T),
-              avg_green_light = mean(green_light, na.rm = T),
-              avg_blue_light = mean(blue_light, na.rm = T)) %>%
-    ungroup() %>% 
-    # Save index
-    mutate(index = 1:length(minute)) %>% 
-    # List ID 
+  pt_minute <- vector("list", length(unique(sleep_val$sleep_date)))
+  pt_agg <- vector("list", length(unique(sleep_val$sleep_date)))
+  
+  for(j in 1: length(unique(sleep_val$sleep_date))){
+    sleep_val_day <- sleep_val[j,]
+    
+    sleep_minute <- pt_dat %>% 
+      # Filter to only night time sleep 
+      filter(interval_status == "REST-S") %>% 
+      # filter to wake and sleep dates 
+      filter((date == sleep_val_day$sleep_date & time > sleep_val_day$sleep_time) | 
+               (date == sleep_val_day$wake_date & time < sleep_val_day$wake_time)) %>% 
+      # Determine activity 
+      mutate(active = activity >= 5, 
+             log_act = log(activity + 1)) %>% 
+      mutate(night = j)
+    
+    if (dim(sleep_minute)[1] == 0) {
+      warning("No valid data on ", sleep_val_day, " for ID ", id)
+      next
+    }
+    
+    
+    # Make a smoothed probability of activity
+    window = 20  # ~5 min
+    sleep_minute$active_smooth = rollapply(sleep_minute$active,
+                                           width = window, FUN = mean, fill = NA, align = "center")
+    
+    # Normalize time 
+    n = nrow(sleep_minute)
+    sleep_minute$t_norm = seq(0, 1, length.out = n)
+    
+    pt_minute[[j]] <- sleep_minute
+    
+    ## Approximate to get an aggregate within individual 
+    grid <- seq(0, 1, length.out = 200)
+    interp_fun <- approxfun(sleep_minute$t_norm, sleep_minute$active_smooth, rule = 2)
+    night_interp <- interp_fun(grid)
+    night_agg <- data.frame(night = j, t_norm = grid, active_interp = night_interp)
+    
+    pt_agg[[j]] <- night_agg
+    
+  }
+  
+  ## Bind all the results
+  pt_minute <- dplyr::bind_rows(pt_minute) %>% 
     mutate(ID = id)
+  
+  pt_agg <- dplyr::bind_rows(pt_agg) %>% 
+    group_by(t_norm) %>% 
+    summarise(mean_interp = mean(active_interp)) %>% 
+    ungroup() %>% 
+    mutate(ID = id)
+  
   
   ## Save participant results
   res_day[[i]] <- pt_day
   res_1min[[i]] <- pt_minute
-
+  res_1min_agg[[i]] <- pt_agg
+  
 }
 
 
 ## Bind all the results
 sleep_daysum <- dplyr::bind_rows(res_day)
 sumsleep_1min <- dplyr::bind_rows(res_1min)
+sumsleep_1min_agg <- dplyr::bind_rows(res_1min_agg)
 
 
 ## Add group
@@ -126,54 +186,32 @@ sumsleep_1min$group <- dems$group[match(sumsleep_1min$ID, dems$pid)]
 sumsleep_1min$group <- ifelse(sumsleep_1min$group == 1, "Case (KS)", "Control")
 sleep_daysum$group <- dems$group[match(sleep_daysum$ID, dems$pid)]
 sleep_daysum$group <- ifelse(sleep_daysum$group == 1, "Case (KS)", "Control")
+sumsleep_1min_agg$group <- dems$group[match(sumsleep_1min_agg$ID, dems$pid)]
+sumsleep_1min_agg$group <- ifelse(sumsleep_1min_agg$group == 1, "Case (KS)", "Control")
 
 ## Remove the ids that were removed from the study (should be 501, 512, 514, 517, 518, and 565)
 sumsleep_1min <- sumsleep_1min %>% filter(!is.na(group))
 sleep_daysum <- sleep_daysum %>% filter(!is.na(group))
+sumsleep_1min_agg <- sumsleep_1min_agg %>% filter(!is.na(group))
 
 
 ## Save files
-write.csv(sumsleep_1min, here::here("data-clean", "Aggregated1minSleep_cleaned.csv"))
+write.csv(sumsleep_1min, here::here("data-clean", "NonAggregated1minSleep_cleaned.csv"))
+write.csv(sumsleep_1min_agg, here::here("data-clean", "Aggregated1minSleep_cleaned.csv"))
 write.csv(sleep_daysum, here::here("data-clean", "DaySleepSummary_cleaned.csv"))
 
 
 
 ## Summarize the average time asleep per group (Split by Weekday and Weekend)
-ggplot(sumsleep_1min, aes(x = index, y = Avg_WhiteLight, group = ID, color = group)) + 
+ggplot(sumsleep_1min_agg, aes(x = t_norm, y = mean_interp, group = ID, color = group)) + 
   stat_smooth(geom="line", se = F, alpha = 0.3, size = 1) + theme_bw() + 
-  geom_smooth(aes(x = index, y = Avg_WhiteLight, group = group, color = group), size = 2) + 
-  scale_x_continuous(breaks = c(0, 182, 362, 542, 722, 902, 1082, 1262, 1442), 
-                     labels = c("Midnight", "3 am", "6 am", "9 am", "Noon", "3 pm", "6 pm", 
-                                "9 pm", "Midnight")) + 
-  xlab("") + ylab("Average White Light (Per Minute)") + 
+  geom_smooth(aes(x = t_norm, y = mean_interp, group = group, color = group), size = 2) + 
+  scale_x_continuous(breaks = c(0, 1), 
+                     labels = c("Bedtime", "Waketime")) + 
+  xlab("") + ylab("Probability of Movement at Time t") + 
   theme(text = element_text(size = 16))
 
-ggplot(sumsleep_1min, aes(x = index, y = Avg_RedLight, group = ID, color = group)) + 
-  stat_smooth(geom="line", se = F, alpha = 0.3, size = 1) + theme_bw() + 
-  geom_smooth(aes(x = index, y = Avg_RedLight, group = group, color = group), size = 2) + 
-  scale_x_continuous(breaks = c(0, 182, 362, 542, 722, 902, 1082, 1262, 1442), 
-                     labels = c("Midnight", "3 am", "6 am", "9 am", "Noon", "3 pm", "6 pm", 
-                                "9 pm", "Midnight")) + 
-  xlab("") + ylab("Average Red Light (Per Minute)") + 
-  theme(text = element_text(size = 16))
 
-ggplot(sumsleep_1min, aes(x = index, y = Avg_GreenLight, group = ID, color = group)) + 
-  stat_smooth(geom="line", se = F, alpha = 0.3, size = 1) + theme_bw() + 
-  geom_smooth(aes(x = index, y = Avg_GreenLight, group = group, color = group), size = 2) + 
-  scale_x_continuous(breaks = c(0, 182, 362, 542, 722, 902, 1082, 1262, 1442), 
-                     labels = c("Midnight", "3 am", "6 am", "9 am", "Noon", "3 pm", "6 pm", 
-                                "9 pm", "Midnight")) + 
-  xlab("") + ylab("Average Green Light (Per Minute)") + 
-  theme(text = element_text(size = 16))
-
-ggplot(sumsleep_1min, aes(x = index, y = Avg_BlueLight, group = ID, color = group)) + 
-  stat_smooth(geom="line", se = F, alpha = 0.3, size = 1) + theme_bw() + 
-  geom_smooth(aes(x = index, y = Avg_BlueLight, group = group, color = group), size = 2) + 
-  scale_x_continuous(breaks = c(0, 182, 362, 542, 722, 902, 1082, 1262, 1442), 
-                     labels = c("Midnight", "3 am", "6 am", "9 am", "Noon", "3 pm", "6 pm", 
-                                "9 pm", "Midnight")) + 
-  xlab("") + ylab("Average Blue Light (Per Minute)") + 
-  theme(text = element_text(size = 16))
 
 ## Order weekday variable 
 sleep_daysum$dayofweek <- ordered(factor(sleep_daysum$dayofweek), 
@@ -204,20 +242,20 @@ summary(sleep_daysum$prop_asleep[sleep_daysum$group == 1])*24
 
 summary(lm(asleep_time ~ group, data = sleep_daysum[sleep_daysum$school_night == "No",]))
 
- 
+
 ## Index from 0 to 1
 sumsleep_1min$sind <- rep(seq(0,1,len=1440), length(unique(sumsleep_1min$ID)))
 
 #####fit the models output -- with the smoothed data 
 #sumsleep_1min$group <- as.factor(sumsleep_1min$group)
 fit_white <- bam(Avg_WhiteLight ~ s(sind, bs="cc") + s(sind, by = group, bs="cc"), 
-               data=sumsleep_1min, method="fREML")
+                 data=sumsleep_1min, method="fREML")
 fit_red <- bam(Avg_RedLight ~ s(sind, bs="cc") + s(sind, by = group, bs="cc"), 
                data=sumsleep_1min, method="fREML")
 fit_blue <- bam(Avg_BlueLight ~ s(sind, bs="cc") + s(sind, by = group, bs="cc"), 
-               data=sumsleep_1min, method="fREML")
-fit_green <- bam(Avg_GreenLight ~ s(sind, bs="cc") + s(sind, by = group, bs="cc"), 
                 data=sumsleep_1min, method="fREML")
+fit_green <- bam(Avg_GreenLight ~ s(sind, bs="cc") + s(sind, by = group, bs="cc"), 
+                 data=sumsleep_1min, method="fREML")
 
 
 # Save residuals
@@ -226,9 +264,9 @@ resid_white <- data.frame(cbind(".id" = sumsleep_1min$ID, ".index" = sumsleep_1m
 resid_red <- data.frame(cbind(".id" = sumsleep_1min$ID, ".index" = sumsleep_1min$index, 
                               ".value" = fit_red$residuals))
 resid_blue <- data.frame(cbind(".id" = sumsleep_1min$ID, ".index" = sumsleep_1min$index, 
-                              ".value" = fit_blue$residuals))
+                               ".value" = fit_blue$residuals))
 resid_green <- data.frame(cbind(".id" = sumsleep_1min$ID, ".index" = sumsleep_1min$index, 
-                               ".value" = fit_green$residuals))
+                                ".value" = fit_green$residuals))
 
 
 ## Convert all columns to numeric 
@@ -261,21 +299,21 @@ sumsleep_1min$ID <- as.numeric(sumsleep_1min$ID)
 
 # Random functional intercept models
 fit_white_rfi <- bam(Avg_WhiteLight ~ s(sind, bs="cc", k = 30) + s(sind, by = group, bs="cc", k = 30) + 
-                     s(ID, by = Phi1_white, bs="cc", k=20) + s(ID, by = Phi2_white, bs="cc", k=20) + 
-                     s(ID, by = Phi3_white, bs="cc", k=20), 
-                   data=sumsleep_1min, method="fREML", discrete = TRUE)
+                       s(ID, by = Phi1_white, bs="cc", k=20) + s(ID, by = Phi2_white, bs="cc", k=20) + 
+                       s(ID, by = Phi3_white, bs="cc", k=20), 
+                     data=sumsleep_1min, method="fREML", discrete = TRUE)
 fit_red_rfi <- bam(Avg_RedLight ~ s(sind, bs="cc", k = 30) + s(sind, by = group, bs="cc", k = 30) + 
-                      s(ID, by = Phi1_red, bs="cc", k=20) + s(ID, by = Phi2_red, bs="cc", k=20) + 
-                      s(ID, by = Phi3_red, bs="cc", k=20), 
-                    data=sumsleep_1min, method="fREML", discrete = TRUE)
-fit_blue_rfi <- bam(Avg_BlueLight ~ s(sind, bs="cc", k = 30) + s(sind, by = group, bs="cc", k = 30) + 
-                     s(ID, by = Phi1_blue, bs="cc", k=20) + s(ID, by = Phi2_blue, bs="cc", k=20) + 
-                     s(ID, by = Phi3_blue, bs="cc", k=20), 
+                     s(ID, by = Phi1_red, bs="cc", k=20) + s(ID, by = Phi2_red, bs="cc", k=20) + 
+                     s(ID, by = Phi3_red, bs="cc", k=20), 
                    data=sumsleep_1min, method="fREML", discrete = TRUE)
-fit_green_rfi <- bam(Avg_GreenLight ~ s(sind, bs="cc", k = 30) + s(sind, by = group, bs="cc", k = 30) + 
-                      s(ID, by = Phi1_green, bs="cc", k=20) + s(ID, by = Phi2_green, bs="cc", k=20) + 
-                      s(ID, by = Phi3_green, bs="cc", k=20), 
+fit_blue_rfi <- bam(Avg_BlueLight ~ s(sind, bs="cc", k = 30) + s(sind, by = group, bs="cc", k = 30) + 
+                      s(ID, by = Phi1_blue, bs="cc", k=20) + s(ID, by = Phi2_blue, bs="cc", k=20) + 
+                      s(ID, by = Phi3_blue, bs="cc", k=20), 
                     data=sumsleep_1min, method="fREML", discrete = TRUE)
+fit_green_rfi <- bam(Avg_GreenLight ~ s(sind, bs="cc", k = 30) + s(sind, by = group, bs="cc", k = 30) + 
+                       s(ID, by = Phi1_green, bs="cc", k=20) + s(ID, by = Phi2_green, bs="cc", k=20) + 
+                       s(ID, by = Phi3_green, bs="cc", k=20), 
+                     data=sumsleep_1min, method="fREML", discrete = TRUE)
 
 white_rfi_summary <- data.frame(summary(fit_white_rfi)$s.table)
 red_rfi_summary <- data.frame(summary(fit_red_rfi)$s.table)
@@ -359,7 +397,6 @@ ggplot(red_rfi_ests, aes(x = sind, y = group_hat_red)) +
                      labels = c("Midnight", "3 am", "6 am", "9 am", "Noon", "3 pm", "6 pm", 
                                 "9 pm", "Midnight")) + 
   xlab("") + theme(text = element_text(size = 16))
-
 
 
 
