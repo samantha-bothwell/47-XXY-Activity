@@ -19,6 +19,9 @@ library(lubridate)
 library(janitor)
 library(purrr)
 library(zoo)
+library(hms)
+library(ggplot2)
+library(mgcv)
 
 ## Get names of all datasets 
 epochs_dir <- here::here("data-raw", "Sleep")
@@ -40,13 +43,37 @@ sleep_diary <- read_csv(here::here("data-raw", "LTE_FullDATA_03172026.csv")) %>%
   filter(redcap_repeat_instrument == "daily_sleep_log") %>% 
   # keep only variables for validation 
   dplyr::select(pid, sd_date, sd_q1, sd_q5) %>% 
+  # clean up sleep times that are in the morning - should be pm
+  mutate(sd_q1 = ifelse(sd_q1 <= as_hms("12:59:59") & sd_q1 > as_hms("05:00:00"), 
+                        sd_q1 + 12*3600, sd_q1), 
+         sd_q1 = as_hms(sd_q1)) %>% 
   # create a sleep date variable 
   mutate(sleep_date = ifelse(as.character(sd_q1) < "05:00:00", sd_date, sd_date - 1), 
          sleep_date = as.Date(sleep_date, origin = "1970-01-01")) %>% 
   # rename variables 
-  rename(wake_date = sd_date, sleep_time = sd_q1, wake_time = sd_q5)
+  rename(wake_date = sd_date, sleep_time = sd_q1, wake_time = sd_q5) %>% 
+  # filter out ids we don't use 
+  filter(!grepl("survey|SURVEY", pid)) %>% 
+  # filter out missing data
+  filter(!is.na(sleep_time)) %>% 
+  filter(!is.na(wake_time)) %>% 
+  # filter out duplicates
+  distinct() %>% 
+  filter(!(pid == "503" & wake_date == as.Date("2022-12-19") & sleep_time == as_hms("20:35:00"))) %>% 
+  filter(!(pid == "503" & wake_date == as.Date("2022-12-24") & wake_time == as_hms("14:15:00"))) %>% 
+  filter(!(pid == "511" & wake_date == as.Date("2023-07-09") & wake_time == as_hms("08:20:00"))) %>% 
+  filter(!(pid == "513" & wake_date == as.Date("2023-08-14"))) %>% 
+  filter(!(pid == "519" & wake_date == as.Date("2023-10-07") & sleep_time == as_hms("00:10:00"))) %>% 
+  filter(!(pid == "557" & wake_date == as.Date("2023-11-29") & sleep_time == as_hms("22:30:00"))) %>% 
+  filter(!(pid == "561" & wake_date == as.Date("2023-11-14") & sleep_time == as_hms("00:05:00"))) %>% 
+  filter(!(pid == "561" & wake_date == as.Date("2023-11-14") & sleep_time == as_hms("22:20:00")))
 
 
+sleep_diary_val <- read_csv(here::here("data-clean", "missing_diarys_validated.csv")) %>% 
+  mutate(wake_date = as.Date(wake_date, format = "%m/%d/%y"), 
+         sleep_date = as.Date(sleep_date, format = "%m/%d/%y"))
+
+sleep_diary <- data.frame(rbind(sleep_diary, sleep_diary_val))
 
 ############ Data Processing 
 ## Initialize results dataframes
@@ -65,7 +92,7 @@ for(i in seq_along(files)){
     # Assume awake if off wrist
     mutate(sleep_wake = ifelse(off_wrist_status == 1, 1, sleep_wake), 
            interval_status = ifelse(off_wrist_status == 1, "ACTIVE", interval_status))
-  
+
   ## Extract participant ID from path
   id <- substr(basename(fpath), 1, 3)
   
@@ -82,7 +109,7 @@ for(i in seq_along(files)){
   
   ## Manual exclusion for lack of usable data
   ## If there are no valid rows, skip
-  if (id %in% c("510", "518", "557", "562", "566", "570")) {
+  if (id == "570") {
     warning("No valid data for ID ", id)
     next
   }
@@ -104,7 +131,7 @@ for(i in seq_along(files)){
     arrange(date) %>%
     filter(date != min(date), date != max(date)) %>% 
     # Assign day index 
-    mutate(index = 1:length(date)) %>%
+    # mutate(index = 1:length(date)) %>%
     mutate(dayofweek = weekdays(date), 
            month = months(date),
            weekday = ifelse(dayofweek %in% c("Saturday", "Sunday"), "Weekend", "Weekday")) %>% 
@@ -115,7 +142,7 @@ for(i in seq_along(files)){
   pt_minute <- vector("list", length(unique(sleep_val$sleep_date)))
   pt_agg <- vector("list", length(unique(sleep_val$sleep_date)))
   
-  for(j in 1: length(unique(sleep_val$sleep_date))){
+  for(j in 1:length(unique(sleep_val$sleep_date))){
     sleep_val_day <- sleep_val[j,]
     
     sleep_minute <- pt_dat %>% 
@@ -130,7 +157,7 @@ for(i in seq_along(files)){
       mutate(night = j)
     
     if (dim(sleep_minute)[1] == 0) {
-      warning("No valid data on ", sleep_val_day, " for ID ", id)
+      warning("No valid data on ", as.character(sleep_val_day), " for ID ", id)
       next
     }
     
@@ -194,6 +221,11 @@ sumsleep_1min <- sumsleep_1min %>% filter(!is.na(group))
 sleep_daysum <- sleep_daysum %>% filter(!is.na(group))
 sumsleep_1min_agg <- sumsleep_1min_agg %>% filter(!is.na(group))
 
+sumsleep_1min <- sumsleep_1min %>%
+  filter(!is.na(active_smooth)) %>%
+  group_by(ID, date) %>%
+  filter(n_distinct(t_norm) > 9) %>% 
+  ungroup()
 
 ## Save files
 write.csv(sumsleep_1min, here::here("data-clean", "NonAggregated1minSleep_cleaned.csv"))
@@ -202,14 +234,30 @@ write.csv(sleep_daysum, here::here("data-clean", "DaySleepSummary_cleaned.csv"))
 
 
 
-## Summarize the average probability of movement per group
-ggplot(sumsleep_1min_agg, aes(x = t_norm, y = mean_interp, group = ID, color = group)) + 
-  stat_smooth(geom="line", se = F, alpha = 0.3, size = 1, n = 200) + theme_bw() + 
-  geom_smooth(aes(x = t_norm, y = mean_interp, group = group, color = group), size = 2) + 
-  scale_x_continuous(breaks = c(0, 1), 
+
+## Smooth individual data 
+smooth_data <- sumsleep_1min %>%
+  group_by(ID, date) %>%
+  nest() %>%
+  mutate(fit = map(data, ~ gam(active_smooth ~ s(t_norm, bs = "cs"), data = .x, method = "REML")),
+         preds = map2(data, fit, ~ tibble(t_norm = .x$t_norm, yhat = pmax(predict(.y, newdata = .x), 0)))) %>%
+  select(ID, date, preds) %>%
+  unnest(preds)
+
+sumsleep_1min$yhat <- smooth_data$yhat
+
+raw_sleep <- ggplot(sumsleep_1min, aes(x = t_norm, group = paste0(ID, "_", night), color = group)) + 
+  geom_line(aes(y = yhat), alpha = 0.1, size = 0.8) + 
+  theme_bw() + 
+  geom_smooth(aes(x = t_norm, y = active_smooth, group = group, color = group), size = 2) + 
+  scale_x_continuous(breaks = c(0.01, 0.99), 
                      labels = c("Bedtime", "Waketime")) + 
   xlab("") + ylab("Probability of Movement at Time t") + 
-  theme(text = element_text(size = 16))
+  labs(x = "", y = "Probability of Movement", color = "") + 
+  scale_color_manual(values = c("#369dd9", "#6D6D6D")) +
+  theme(text = element_text(size = 20), legend.position = "bottom")
+
+ggsave(filename = here::here("outputs", "raw_sleep_mvmt.png"), plot = raw_sleep, width = 10, height = 7, units = "in")
 
 
 

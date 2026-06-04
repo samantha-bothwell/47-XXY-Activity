@@ -16,6 +16,7 @@ library(mclust)
 library(readr)
 library(dplyr)
 library(ggplot2)
+library(ggpubr)
 
 ## Load data 
 sleep <- read_csv(here::here("data-clean", "NonAggregated1minSleep_cleaned.csv")) %>% 
