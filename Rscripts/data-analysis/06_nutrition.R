@@ -47,6 +47,7 @@ nutrition <- full_data %>%
                 ~ mean(.x, na.rm = T))) %>% 
   ungroup()
 
+
 ## Make a macronutrients plot
 macros <- nutrition %>% 
   dplyr::select(pid, group, fats, carbs, protein) %>% 
