@@ -125,7 +125,7 @@ for(i in seq_along(files)){
       filter((date == sleep_val_day$sleep_date & time > sleep_val_day$sleep_time) | 
                (date == sleep_val_day$wake_date & time < sleep_val_day$wake_time)) %>% 
       # Determine activity 
-      mutate(active = activity >= 5, 
+      mutate(active = activity >= 14, # based off of mixture model
              log_act = log(activity + 1)) %>% 
       mutate(night = j)
     
