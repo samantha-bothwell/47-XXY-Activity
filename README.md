@@ -8,7 +8,7 @@
 Klinefelter syndrome (KS), 47,XXY, affects 1 in 600 males and is
 characterized by an additional X chromosome. Men with KS have altered
 testicular development, deficient testosterone levels, and infertility.
-They are less physically active than other men, have higher BMIs on
+They are less physically active than 46,XY men, have higher BMIs on
 average, and report higher levels of fatigue. However, little research
 has explored the relationship between sleep and activity in KS. This
 analysis analyzes differences in activity and sleep outcomes between KS
