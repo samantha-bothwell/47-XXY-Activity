@@ -28,27 +28,30 @@ sleep <- sleep %>%
   # create a unique day_subject variable 
   mutate(subject_sleep = paste0(ID, "_", night)) %>% 
   # make sure ID and subject_day are factors
-  mutate(ID = as.factor(ID), night = as.factor(night)) %>% 
+  mutate(ID = as.factor(ID)) %>% 
+  mutate(night = as.factor(night)) %>% 
   # Make Group numeric (per pg 125 of textbook)
   mutate(group = as.numeric(group == "Case (KS)")) %>% 
   # filter out missing smooth variables 
   filter(!is.na(active_smooth))
 
 
-## Naive FoSR
+## FoSR
 fit <- gam(active_smooth ~ 
              s(t_norm, bs = "cr") +                   # functional intercept
              s(t_norm, by = group, bs = "cr") +       # functional effect for group
+             #s(night, ID, bs = "re") +                # nesting of nights within individual
              s(t_norm, ID, bs = "fs", m = 1, k = 5),  # functional random intercept
            family = quasibinomial(link = "logit"),
            data = sleep, method = "REML")
 
-saveRDS(fit, file = here::here("outputs", "sleep_mvmt_fit.rds"))
+saveRDS(fit, file = here::here("outputs", "sleep_mvmt_night_re_fit.rds"))
 
 
 ## Prediction data 
-df_pred <- data.frame(t_norm = seq(0, 1, length = 300),
+df_pred <- data.frame(t_norm = seq(0, 1, length = 200),
                       ID = sleep$ID[1], 
+                      night = 1,
                       group = 1)
 fhat <- predict(fit, newdata=df_pred, se.fit=TRUE,type='terms')
 
@@ -57,7 +60,7 @@ group_hat <- fhat$fit[,2]; group_se <- fhat$se.fit[,2]
 crude_ests <- data.frame(group_hat, 
                          group_low = group_hat - 1.96*group_se, 
                          group_high = group_hat + 1.96*group_se, 
-                         sind = seq(0, 1, length = 300))
+                         sind = seq(0, 1, length = 200))
 
 
 ## Make plots 
