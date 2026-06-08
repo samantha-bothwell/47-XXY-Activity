@@ -75,6 +75,7 @@ sleep_diary_val <- read_csv(here::here("data-clean", "missing_diarys_validated.c
 
 sleep_diary <- data.frame(rbind(sleep_diary, sleep_diary_val))
 
+
 ############ Data Processing 
 ## Initialize results dataframes
 res_day <- vector("list", length(files))
@@ -106,6 +107,19 @@ for(i in seq_along(files)){
   pt_dat <- pt_dat %>% 
     mutate(date = as.Date(date, format = "%m/%d/%y")) %>% 
     filter(date %in% c(sleep_val$wake_date, sleep_val$sleep_date))
+  
+  ## Manual time change 
+  if (id %in% c("515", "567")){
+    pt_dat <- pt_dat %>% 
+      mutate(time = time - 3600, 
+             time = as_hms(time))
+  }
+  
+  if (id %in% c("562", "564")){
+    pt_dat <- pt_dat %>% 
+      mutate(time = time + 3600, 
+             time = as_hms(time))
+  }
   
   ## Manual exclusion for lack of usable data
   ## If there are no valid rows, skip
@@ -227,6 +241,17 @@ sumsleep_1min <- sumsleep_1min %>%
   filter(n_distinct(t_norm) > 9) %>% 
   ungroup()
 
+
+sumsleep_1min <- sumsleep_1min %>% 
+  mutate(dayofweek = weekdays(date), 
+         month = months(date),
+         weekday = case_when(dayofweek == "Friday" & time > as_hms("12:00:00") ~ "Weekend", 
+                             dayofweek == "Saturday" ~ "Weekend", 
+                             dayofweek == "Sunday" & time < as_hms("16:00:00") ~ "Weekend", 
+                             .default = "Weekday"),
+         school = ifelse(month %in% c("June", "July", "August"), "Summer", "School-Year"))
+
+
 ## Save files
 write.csv(sumsleep_1min, here::here("data-clean", "NonAggregated1minSleep_cleaned.csv"))
 write.csv(sumsleep_1min_agg, here::here("data-clean", "Aggregated1minSleep_cleaned.csv"))
@@ -258,6 +283,33 @@ raw_sleep <- ggplot(sumsleep_1min, aes(x = t_norm, group = paste0(ID, "_", night
   theme(text = element_text(size = 20), legend.position = "bottom")
 
 ggsave(filename = here::here("outputs", "raw_sleep_mvmt.png"), plot = raw_sleep, width = 10, height = 7, units = "in")
+
+
+ggplot(sumsleep_1min %>% 
+         filter(weekday == "Weekday" & school == "School-Year"), 
+       aes(x = t_norm, group = paste0(ID, "_", night), color = group)) + 
+  geom_line(aes(y = yhat), alpha = 0.1, size = 0.8) + 
+  theme_bw() + 
+  geom_smooth(aes(x = t_norm, y = active_smooth, group = group, color = group), size = 2) + 
+  scale_x_continuous(breaks = c(0.01, 0.99), 
+                     labels = c("Bedtime", "Waketime")) + 
+  xlab("") + ylab("Probability of Movement at Time t") + 
+  labs(x = "", y = "Probability of Movement", color = "") + 
+  scale_color_manual(values = c("#369dd9", "#6D6D6D")) +
+  theme(text = element_text(size = 20), legend.position = "bottom")
+
+ggplot(sumsleep_1min %>% 
+         filter(weekday == "Weekend" | school == "Summer"), 
+       aes(x = t_norm, group = paste0(ID, "_", night), color = group)) + 
+  geom_line(aes(y = yhat), alpha = 0.1, size = 0.8) + 
+  theme_bw() + 
+  geom_smooth(aes(x = t_norm, y = active_smooth, group = group, color = group), size = 2) + 
+  scale_x_continuous(breaks = c(0.01, 0.99), 
+                     labels = c("Bedtime", "Waketime")) + 
+  xlab("") + ylab("Probability of Movement at Time t") + 
+  labs(x = "", y = "Probability of Movement", color = "") + 
+  scale_color_manual(values = c("#369dd9", "#6D6D6D")) +
+  theme(text = element_text(size = 20), legend.position = "bottom")
 
 
 

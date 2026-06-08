@@ -38,6 +38,7 @@ sleep <- sleep %>%
 
 ## FoSR
 fit <- gam(active_smooth ~ 
+             group + weekday + school + 
              s(t_norm, bs = "cr") +                   # functional intercept
              s(t_norm, by = group, bs = "cr") +       # functional effect for group
              #s(night, ID, bs = "re") +                # nesting of nights within individual
@@ -45,18 +46,45 @@ fit <- gam(active_smooth ~
            family = quasibinomial(link = "logit"),
            data = sleep, method = "REML")
 
-saveRDS(fit, file = here::here("outputs", "sleep_mvmt_night_re_fit.rds"))
+saveRDS(fit, file = here::here("outputs", "sleep_mvmt_fit.rds"))
+
+
+fit_we_summer <- gam(active_smooth ~ 
+             s(t_norm, bs = "cr") +                   # functional intercept
+             s(t_norm, by = group, bs = "cr") +       # functional effect for group
+             #s(night, ID, bs = "re") +                # nesting of nights within individual
+             s(t_norm, ID, bs = "fs", m = 1, k = 5),  # functional random intercept
+           family = quasibinomial(link = "logit"),
+           data = sleep %>% filter(weekday == "Weekend" | school == "Summer"), method = "REML")
+
+saveRDS(fit_we_summer, file = here::here("outputs", "sleep_mvmt_we_summer_fit.rds"))
 
 
 ## Prediction data 
 df_pred <- data.frame(t_norm = seq(0, 1, length = 200),
                       ID = sleep$ID[1], 
                       night = 1,
-                      group = 1)
+                      group = 1, 
+                      weekday = "Weekday", 
+                      school = "School-Year")
 fhat <- predict(fit, newdata=df_pred, se.fit=TRUE,type='terms')
 
+## Prediction data 
+df_pred_we_summer <- data.frame(t_norm = seq(0, 1, length = 200),
+                      ID = sleep$ID[1], 
+                      night = 1,
+                      group = 1)
+fhat_we_summer <- predict(fit_we_summer, newdata=df_pred_we_summer, se.fit=TRUE,type='terms')
+
 ## Pull linear functional fit estimates
-group_hat <- fhat$fit[,2]; group_se <- fhat$se.fit[,2]
+group_hat <- fhat$fit[,"s(t_norm):group"]; group_se <- fhat$se.fit[,"s(t_norm):group"]
+crude_ests <- data.frame(group_hat, 
+                         group_low = group_hat - 1.96*group_se, 
+                         group_high = group_hat + 1.96*group_se, 
+                         sind = seq(0, 1, length = 200))
+
+## Pull linear functional fit estimates
+group_hat <- fhat_we_summer$fit[,"s(t_norm):group"]; group_se <- fhat_we_summer$se.fit[,"s(t_norm):group"]
 crude_ests <- data.frame(group_hat, 
                          group_low = group_hat - 1.96*group_se, 
                          group_high = group_hat + 1.96*group_se, 
