@@ -54,10 +54,27 @@ for (i in seq_along(files)) {
   ## Extract participant ID from path
   id <- substr(basename(fpath), 1, 3)
   
+  pt_dat$time = parse_time(pt_dat$time)
+  
+  ## Manual time change 
+  if (id %in% c("515", "567")){
+    pt_dat <- pt_dat %>% 
+      mutate(time = time - 3600)
+  }
+  
+  if (id %in% c("562", "564")){
+    pt_dat <- pt_dat %>% 
+      mutate(time = time + 3600)
+  }
+  
+  if (id %in% c("523", "527", "528")){
+    pt_dat <- pt_dat %>% 
+      mutate(time = time + 3600*2)
+  }
+  
   ## Clean date and time
   pt_dat <- pt_dat %>%
-    mutate(time = parse_time(.data$time),
-           date = as.Date(time),
+    mutate(date = as.Date(time),
            minute = format(time, "%H:%M"),
            # summarize 15 minute intervals
            min15 = floor((hour(time) * 60 + minute(time)) / 15))

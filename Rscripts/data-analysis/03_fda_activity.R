@@ -53,7 +53,7 @@ df_pred <- data.frame(index = seq(1, 1440, by = 1),
 fhat <- predict(fit, newdata=df_pred, se.fit=TRUE,type='terms')
 
 ## Pull linear functional fit estimates
-group_hat <- fhat$fit[,2]; group_se <- fhat$se.fit[,2]
+group_hat <- fhat$fit[,"s(index):group"]; group_se <- fhat$se.fit[,"s(index):group"]
 crude_ests <- data.frame(group_hat, 
                          group_low = group_hat - 1.96*group_se, 
                          group_high = group_hat + 1.96*group_se, 
