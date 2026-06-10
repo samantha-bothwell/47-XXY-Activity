@@ -18,6 +18,7 @@ library(refund)
 library(readr)
 library(dplyr)
 library(ggplot2)
+library(hms)
 
 ## Load data 
 sumdata_day <- read_csv(here::here("data-clean", "Nonaggregated1min_cleaned.csv"))
@@ -35,9 +36,19 @@ sumdata_day <- sumdata_day %>%
   # Make Group numeric (per pg 125 of textbook)
   mutate(group = as.numeric(group == "KS Case"))
 
+sumdata_day <- sumdata_day %>% 
+  mutate(dayofweek = weekdays(date), 
+         month = months(date),
+         weekday = case_when(dayofweek == "Friday" & minute > as_hms("12:00:00") ~ "Weekend", 
+                             dayofweek == "Saturday" ~ "Weekend", 
+                             dayofweek == "Sunday" & minute < as_hms("16:00:00") ~ "Weekend", 
+                             .default = "Weekday"),
+         school = ifelse(month %in% c("June", "July", "August"), "Summer", "School-Year"))
+
 
 ## Naive FoSR
 fit <- gam(met_minute ~ 
+             weekday + school + group + 
                    s(index, bs = "cc") +                   # functional intercept
                    s(index, by = group, bs = "cc") +       # functional effect for group
                    s(index, ID, bs = "fs", m = 1, k = 5),  # functional random intercept
