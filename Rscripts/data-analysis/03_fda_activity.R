@@ -23,6 +23,15 @@ library(hms)
 ## Load data 
 sumdata_day <- read_csv(here::here("data-clean", "Nonaggregated1min_cleaned.csv"))
 
+## Load demographic data 
+dems <- read_csv(here::here("data-clean", "identifiable", "Demographics.csv")) %>% 
+  ## Keep only complete data 
+  filter(!is.na(calc_age))
+
+## Add age and BMI to sumdata_day
+sumdata_day$age <- dems$calc_age[match(sumdata_day$ID, dems$pid)]
+sumdata_day$BMI <- dems$pe_bmi[match(sumdata_day$ID, dems$pid)]
+
 ## Assign day index 
 sumdata_day <- sumdata_day %>% 
   group_by(ID) %>% 
@@ -45,8 +54,8 @@ sumdata_day <- sumdata_day %>%
 
 
 ## FoSR
-fit_we <- gam(met_minute ~ 
-            # weekday + school + 
+fit_uns <- gam(met_minute ~ 
+               age + BMI + 
                    s(index, bs = "cc") +                   # functional intercept
                    s(index, by = group, bs = "cc") +       # functional effect for group
                    s(index, ID, bs = "fs", m = 1, k = 5),  # functional random intercept
@@ -54,16 +63,28 @@ fit_we <- gam(met_minute ~
                  data = sumdata_day %>% filter(!(weekday == "Weekday" & school == "School-Year")), 
            method = "REML")
 
-saveRDS(fit, file = here::here("outputs", "met_fit.rds"))
+saveRDS(fit_uns, file = here::here("outputs", "met_fit_uns.rds"))
 
 
-fit <- fit_we
+fit_stru <- gam(met_minute ~ 
+                 age + BMI + 
+                 s(index, bs = "cc") +                   # functional intercept
+                 s(index, by = group, bs = "cc") +       # functional effect for group
+                 s(index, ID, bs = "fs", m = 1, k = 5),  # functional random intercept
+               family = Gamma(link = "log"),
+               data = sumdata_day %>% filter(weekday == "Weekday" & school == "School-Year"), 
+               method = "REML")
+
+saveRDS(fit_stru, file = here::here("outputs", "met_fit_stru.rds"))
+
+
+fit <- fit_stru
 ## Prediction data 
 df_pred <- data.frame(index = seq(1, 1440, by = 1),
                       ID = sumdata_day$ID[1], 
                       group = 1, 
-                      weekday = "Weekday", 
-                      school = "School-Year")
+                      age = mean(dems$calc_age, na.rm = T), 
+                      BMI = mean(dems$pe_bmi, na.rm = T))
 fhat <- predict(fit, newdata=df_pred, se.fit=TRUE,type='terms')
 
 ## Pull linear functional fit estimates
@@ -80,13 +101,19 @@ fda_mets_pct <- ggplot(crude_ests, aes(x = sind, y = group_hat)) +
               fill = "blue", alpha = 0.2) +
   geom_line(size = 1)  + 
   ylab("Percent Difference in Expected METs per Minute\n(KS Cases vs Non-KS Controls)") + 
-  ggtitle("Functional Percent Difference of METs per Minute \nWeekends or Summer") + theme_bw() +
+  ggtitle("Functional Percent Difference of METs per Minute \nStructured Days") + theme_bw() +
   scale_y_continuous(breaks = c(-0.15, -0.1, -0.05, 0, 0.05), labels = c("-15%", "-10%", "-5%", "0%", "5%")) + 
   scale_x_continuous(breaks = c(0, 182, 362, 542, 722, 902, 1082, 1262, 1442), 
                      labels = c("Midnight", "3 am", "6 am", "9 am", "Noon", "3 pm", "6 pm", 
                                 "9 pm", "Midnight")) + 
   xlab("") + theme(text = element_text(size = 16), plot.title = element_text(hjust = 0.5)) + 
-  annotate("text", x = 200, y = 0.07, label = "Higher KS Case Activity", size = 5)  + 
-  annotate("text", x = 200, y = -0.1, label = "Lower KS Case Activity", size = 5)
+  annotate("text", x = 200, y = 0.09, label = "Higher KS Case Activity", size = 5)  + 
+  annotate("text", x = 200, y = -0.15, label = "Lower KS Case Activity", size = 5)
 
-ggsave(filename = here::here("outputs", "fda_mets_pct_weekends_summer.png"), plot = fda_mets_pct, width = 10, height = 7, units = "in")
+ggsave(filename = here::here("outputs", "fda_mets_pct_weekdays.png"), plot = fda_mets_pct, width = 10, height = 7, units = "in")
+
+
+
+
+
+
