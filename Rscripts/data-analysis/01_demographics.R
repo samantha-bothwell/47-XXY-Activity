@@ -17,6 +17,7 @@ library(table1)
 library(Hmisc)
 library(flextable)
 library(magrittr)
+library(dplyr)
 
 
 ## Source functions

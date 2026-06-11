@@ -46,21 +46,24 @@ sumdata_day <- sumdata_day %>%
          school = ifelse(month %in% c("June", "July", "August"), "Summer", "School-Year"))
 
 
-## Naive FoSR
+## FoSR
 fit <- gam(met_minute ~ 
-             weekday + school + group + 
+            # weekday + school + 
                    s(index, bs = "cc") +                   # functional intercept
                    s(index, by = group, bs = "cc") +       # functional effect for group
                    s(index, ID, bs = "fs", m = 1, k = 5),  # functional random intercept
-                   family = Gamma(link = "log"),
-                 data = sumdata_day, method = "REML")
+                 family = Gamma(link = "log"),
+                 data = sumdata_day %>% filter(weekday == "Weekday" & scool == "School-Year"), 
+           method = "REML")
 
 saveRDS(fit, file = here::here("outputs", "met_fit.rds"))
 
 ## Prediction data 
 df_pred <- data.frame(index = seq(1, 1440, by = 1),
                       ID = sumdata_day$ID[1], 
-                      group = 1)
+                      group = 1, 
+                      weekday = "Weekday", 
+                      school = "School-Year")
 fhat <- predict(fit, newdata=df_pred, se.fit=TRUE,type='terms')
 
 ## Pull linear functional fit estimates

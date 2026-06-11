@@ -28,7 +28,7 @@ mix_fit <- Mclust(sleep$log_act, G = 1:4); summary(mix_fit)
 
 sleep$state_mix <- factor(mix_fit$classification, 
                           levels = c(1:4), 
-                          labels = c("Very Still Sleep", "Quiet (Typical) Sleep", 
+                          labels = c("Very Still Sleep", "Quiet Sleep", 
                                      "Restless Sleep", "Wake/Active"))
 
 # Get sleep stage summary per person and night
@@ -55,7 +55,7 @@ sleep_stages <- ggplot(sleep_sum, aes(x = group, y = prop, fill = group)) +
   facet_grid(state_mix~time_period, scales = "free_y") + 
   labs(x = "", y = "Proportion of Sleeping Time", fill = "")
 
-ggsave(filename = here::here("outputs", "sleep_stages.png"), plot = sleep_stages, width = 6, height = 9, units = "in")
+ggsave(filename = here::here("outputs", "sleep_stages.png"), plot = sleep_stages, width = 8, height = 9, units = "in")
 
 
 
