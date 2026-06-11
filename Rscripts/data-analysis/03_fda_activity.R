@@ -39,25 +39,25 @@ sumdata_day <- sumdata_day %>%
 sumdata_day <- sumdata_day %>% 
   mutate(dayofweek = weekdays(date), 
          month = months(date),
-         weekday = case_when(dayofweek == "Friday" & minute > as_hms("12:00:00") ~ "Weekend", 
-                             dayofweek == "Saturday" ~ "Weekend", 
-                             dayofweek == "Sunday" & minute < as_hms("16:00:00") ~ "Weekend", 
+         weekday = case_when(dayofweek %in% c("Saturday", "Sunday") ~ "Weekend", 
                              .default = "Weekday"),
          school = ifelse(month %in% c("June", "July", "August"), "Summer", "School-Year"))
 
 
 ## FoSR
-fit <- gam(met_minute ~ 
+fit_we <- gam(met_minute ~ 
             # weekday + school + 
                    s(index, bs = "cc") +                   # functional intercept
                    s(index, by = group, bs = "cc") +       # functional effect for group
                    s(index, ID, bs = "fs", m = 1, k = 5),  # functional random intercept
                  family = Gamma(link = "log"),
-                 data = sumdata_day %>% filter(weekday == "Weekday" & scool == "School-Year"), 
+                 data = sumdata_day %>% filter(!(weekday == "Weekday" & school == "School-Year")), 
            method = "REML")
 
 saveRDS(fit, file = here::here("outputs", "met_fit.rds"))
 
+
+fit <- fit_we
 ## Prediction data 
 df_pred <- data.frame(index = seq(1, 1440, by = 1),
                       ID = sumdata_day$ID[1], 
@@ -80,7 +80,7 @@ fda_mets_pct <- ggplot(crude_ests, aes(x = sind, y = group_hat)) +
               fill = "blue", alpha = 0.2) +
   geom_line(size = 1)  + 
   ylab("Percent Difference in Expected METs per Minute\n(KS Cases vs Non-KS Controls)") + 
-  ggtitle("Functional Percent Difference of METs per Minute") + theme_bw() +
+  ggtitle("Functional Percent Difference of METs per Minute \nWeekends or Summer") + theme_bw() +
   scale_y_continuous(breaks = c(-0.1, -0.05, 0, 0.05), labels = c("-10%", "-5%", "0%", "5%")) + 
   scale_x_continuous(breaks = c(0, 182, 362, 542, 722, 902, 1082, 1262, 1442), 
                      labels = c("Midnight", "3 am", "6 am", "9 am", "Noon", "3 pm", "6 pm", 
@@ -89,4 +89,4 @@ fda_mets_pct <- ggplot(crude_ests, aes(x = sind, y = group_hat)) +
   annotate("text", x = 200, y = 0.05, label = "Higher KS Case Activity", size = 5)  + 
   annotate("text", x = 200, y = -0.1, label = "Lower KS Case Activity", size = 5)
 
-ggsave(filename = here::here("outputs", "fda_mets_pct.png"), plot = fda_mets_pct, width = 10, height = 7, units = "in")
+ggsave(filename = here::here("outputs", "fda_mets_pct_weekends_summer.png"), plot = fda_mets_pct, width = 10, height = 7, units = "in")
