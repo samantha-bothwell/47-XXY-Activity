@@ -59,14 +59,16 @@ dems_clean <- full %>%
   mutate(vo2_max_ml_kg_min = as.numeric(vo2_max_ml_kg_min)) %>% 
   # Select variables we're interested in 
   dplyr::select(pid, calc_age, group, nih_ethnicity_race, pe_wt, pe_ht, pe_bmi, vo2_max_ml_kg_min, totalsedentarytimem,
-                ad_date, ad_time, ad_q7, fat_ad_t, fat_ped_t, fat_pp_t, sleep_ped_t, sleep_ad_t, sleep_pp_t)
+                ad_date, ad_time, ad_q7, fat_ad_t, fat_ped_t, fat_pp_t, sleep_ped_t, sleep_ad_t, sleep_pp_t, 
+                avg_sleep_efficiency, avg_waso)
+
 
 
 ## Categorize time period of data collection
 act_summary <- sumdata_day %>% 
   # Determine if collection was school-year or summer
   mutate(month = month(date), 
-         season = ifelse(month %in% c(1:5, 9:12), "School Year", "Summer")) %>% 
+         season = ifelse(month %in% c(1:5, 9:12), "Non-Summer", "Summer")) %>% 
   # summarize # of days of wear and % wear time
   group_by(ID) %>% 
   summarise(season = season[1], 
@@ -75,6 +77,16 @@ act_summary <- sumdata_day %>%
   
 ## Add variables to dems_clean
 dems_clean <- merge(dems_clean, act_summary, by.x = "pid", by.y = "ID")
+
+
+## summarize avg mets and mvpa and add to dems_clean
+mvpa_sum <- mvpa %>% 
+  group_by(ID) %>% 
+  summarise(mean_mets = mean(total_mets_per_mins/1440, na.rm = T), 
+            mean_mvpa = mean(Avg_MVPA_Percent, na.rm = T)) %>% 
+  ungroup()
+dems_clean <- merge(dems_clean, mvpa_sum, by.x = "pid", by.y = "ID")
+
 
 write_csv(dems_clean, here::here("data-clean", "identifiable", "Demographics.csv"))
 

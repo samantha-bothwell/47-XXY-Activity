@@ -77,6 +77,7 @@ fit_stru <- gam(met_minute ~
 
 saveRDS(fit_stru, file = here::here("outputs", "met_fit_stru.rds"))
 
+#fit_uns <- readRDS(here::here("outputs", "met_fit_uns.rds"))
 
 fit <- fit_stru
 ## Prediction data 
