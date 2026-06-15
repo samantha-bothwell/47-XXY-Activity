@@ -41,7 +41,7 @@ fit <- gam(active_smooth ~
              group + weekday + school + 
              s(t_norm, bs = "cr") +                   # functional intercept
              s(t_norm, by = group, bs = "cr") +       # functional effect for group
-             #s(night, ID, bs = "re") +                # nesting of nights within individual
+             s(night, ID, bs = "re") +                # nesting of nights within individual
              s(t_norm, ID, bs = "fs", m = 1, k = 5),  # functional random intercept
            family = quasibinomial(link = "logit"),
            data = sleep, method = "REML")
