@@ -99,8 +99,8 @@ for (i in seq_along(files)) {
   ## Summarize Activity within days 
   pt_day <- pt_clean %>%
     group_by(date, minute) %>%
-    summarise(step_count = sum(.data$step_count, na.rm = TRUE),
-              activity_score = sum(.data$activity_score_met_s, na.rm = TRUE),
+    summarise(step_count = sum(step_count, na.rm = TRUE),
+              activity_score = sum(activity_score_met_s, na.rm = TRUE),
               met_minute = activity_score/60,
               .groups = "drop") %>%
     mutate(ID = id) %>%

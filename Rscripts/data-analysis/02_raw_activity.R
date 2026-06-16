@@ -32,18 +32,37 @@ redcap <- read_csv(here::here("data-raw", "LTE_FullDATA_03172026.csv"))
 smooth_data <- sumdata_day %>%
   group_by(ID, date) %>%
   nest() %>%
-  mutate(fit = map(data, ~ {gam(met_minute ~ s(index, bs = "cs"), data = ., method = "REML")}),
-    preds = map2(data, fit, ~ {tibble(index = .$index,
-                                      yhat = pmax(predict(.y, newdata = .x), 1.25))})) %>%
+  mutate(fit = map(data, ~ {gam(met_minute ~ s(index, bs = "cs", k = 30), data = ., method = "REML")}),
+         preds = map2(data, fit, ~ {tibble(index = .$index,
+                                           yhat = pmax(predict(.y, newdata = .x), 1.25))})) %>%
   select(ID, date, preds) %>%
   unnest(preds)
 sumdata_day$yhat <- smooth_data$yhat
+
+
+group_avg <- sumdata_day %>%
+  group_by(group, index) %>%
+  summarise(
+    met_mean = mean(met_minute, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+
+overall_smooth <- group_avg %>%
+  group_by(group) %>%
+  group_modify(~ {
+    fit <- gam(log(pmax(met_mean, 1.25)) ~ s(index, bs = "tp", k = 40),
+               data = .x, method = "REML")
+    tibble(index = .x$index,
+           yhat = exp(predict(fit, newdata = .x)))}) %>%
+  ungroup()
+
 
 ### Multiple Days Within Individual 
 mets_plt <- ggplot(sumdata_day, aes(x = index, group = paste0(ID, date), color = group)) + 
   geom_line(aes(y = yhat), alpha = 0.1, size = 0.8) + 
   theme_bw() + 
-  geom_smooth(aes(y = met_minute, group = group), size = 2) + 
+  geom_smooth(data = overall_smooth, aes(x = index, y = yhat, group = group), size = 2) + 
   scale_x_continuous(breaks = c(0, 182, 362, 542, 722, 902, 1082, 1262, 1442), 
                      labels = c("Midnight", "3 am", "6 am", "9 am", "Noon", "3 pm", "6 pm", 
                                 "9 pm", "Midnight")) + 
@@ -58,8 +77,8 @@ mets_plt <- ggplot(sumdata_day, aes(x = index, group = paste0(ID, date), color =
   geom_hline(yintercept = 3.0, linetype = "dashed", color = "gray40", size = 0.6) + 
   annotate("text", x = 20, y = 1.1, label = "Sedentary Activity", hjust = 0, size = 5) + 
   annotate("text", x = 20, y = 2.25, label = "Light Activity", hjust = 0, size = 5) + 
-  annotate("text", x = 20, y = 3.2, label = "Moderate-to-Vigorous Activity", hjust = 0, size = 5)
-
+  annotate("text", x = 20, y = 4, label = "Moderate-to-Vigorous Activity", hjust = 0, size = 5)
+mets_plt
 
 ggsave(filename = here::here("outputs", "raw_mets.png"), plot = mets_plt, width = 10, height = 7, units = "in")
 
