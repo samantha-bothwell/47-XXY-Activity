@@ -34,7 +34,7 @@ smooth_data <- sumdata_day %>%
   nest() %>%
   mutate(fit = map(data, ~ {gam(met_minute ~ s(index, bs = "cs"), data = ., method = "REML")}),
     preds = map2(data, fit, ~ {tibble(index = .$index,
-                                      yhat = pmax(predict(.y, newdata = .x), 1))})) %>%
+                                      yhat = pmax(predict(.y, newdata = .x), 1.25))})) %>%
   select(ID, date, preds) %>%
   unnest(preds)
 sumdata_day$yhat <- smooth_data$yhat
@@ -56,7 +56,7 @@ mets_plt <- ggplot(sumdata_day, aes(x = index, group = paste0(ID, date), color =
   # Show levels of activity
   geom_hline(yintercept = 1.5, linetype = "dashed", color = "gray40", size = 0.6) +
   geom_hline(yintercept = 3.0, linetype = "dashed", color = "gray40", size = 0.6) + 
-  annotate("text", x = 20, y = 1, label = "Sedentary Activity", hjust = 0, size = 5) + 
+  annotate("text", x = 20, y = 1.1, label = "Sedentary Activity", hjust = 0, size = 5) + 
   annotate("text", x = 20, y = 2.25, label = "Light Activity", hjust = 0, size = 5) + 
   annotate("text", x = 20, y = 3.2, label = "Moderate-to-Vigorous Activity", hjust = 0, size = 5)
 
