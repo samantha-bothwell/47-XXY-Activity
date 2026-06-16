@@ -51,10 +51,11 @@ group_avg <- sumdata_day %>%
 overall_smooth <- group_avg %>%
   group_by(group) %>%
   group_modify(~ {
-    fit <- gam(log(pmax(met_mean, 1.25)) ~ s(index, bs = "tp", k = 40),
-               data = .x, method = "REML")
+    fit <- gam(log(met_mean) ~ s(index, bs = "cs", k = 30),
+               data = ., method = "REML")
     tibble(index = .x$index,
-           yhat = exp(predict(fit, newdata = .x)))}) %>%
+           yhat = exp(predict(fit, newdata = .x)))
+    }) %>%
   ungroup()
 
 
