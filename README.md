@@ -27,7 +27,7 @@ sleep and wake time as well as light exposure.
 The first and last day of wear for each participant were excluded for
 analysis.
 
-Data were extracted from ActivPal in but summarized within minutes.
+Data were extracted from ActivPal in 15 second epochs but summarized one a minute (60-second) interval.
 
 Entries where the watch was indicated to not have been worn were
 removed. Only days with \>70% of wear time were included.
