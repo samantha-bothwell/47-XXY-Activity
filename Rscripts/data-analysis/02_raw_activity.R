@@ -174,23 +174,23 @@ pvals <- avg_mets %>%
   # filter out very active as well
   filter(sr_act != "Very Active") %>% 
   summarise(p = t.test(mean_mets ~ group)$p.value) %>%
-  mutate(label = paste0("p = ", signif(p, 3)))
+  mutate(label = paste0("p = ", round(p, 3)))
 
 
 
 
 sr_vs_actual <- ggplot(avg_mets %>% 
-                         filter(!is.na(sr_act)), aes(x = group, y = mean_mets, fill = sr_act)) + 
+                         filter(!is.na(sr_act)), aes(x = group, y = mean_mets, fill = group)) + 
   geom_boxplot() + 
   geom_jitter(fill = "white", pch = 21, width = 0.15, height = 0, size = 3) + 
-  scale_fill_manual(values = c("#fabec0", "#fa8e92", "#fa555b", "#d6020a")) + 
+  scale_fill_manual(values = c("#369dd9", "#6D6D6D")) + 
   theme_bw(base_size = 20) + 
   theme(legend.position = "none") + 
-  labs(x = "Self-Reported Activity", y = "Average Daily METS") + 
+  labs(x = "", y = "Average Daily METS") + 
   facet_wrap(~sr_act, ncol = 4) + 
   geom_text(data = pvals,
             aes(x = 1.5, y = max(avg_mets$mean_mets, na.rm = TRUE) * 1.05, label = label),
-            inherit.aes = FALSE, size = 5)
+            inherit.aes = FALSE, size = 6)
 
-ggsave(filename = here::here("outputs", "sr_vs_actual_activity.png"), plot = sr_vs_actual, width = 15, height = 7, units = "in")
+ggsave(filename = here::here("outputs", "sr_vs_actual_activity.png"), plot = sr_vs_actual, width = 14, height = 6, units = "in")
 
