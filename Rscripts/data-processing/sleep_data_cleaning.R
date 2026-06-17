@@ -81,6 +81,7 @@ sleep_diary <- data.frame(rbind(sleep_diary, sleep_diary_val))
 ## Initialize results dataframes
 res_day <- vector("list", length(files))
 res_1min <- vector("list", length(files))
+res_norm <- vector("list", length(files))
 res_1min_agg <- vector("list", length(files))
 
 
@@ -190,7 +191,7 @@ for(i in seq_along(files)){
     
     ## Approximate to get an aggregate within individual 
     grid <- seq(0, 1, length.out = 200)
-    interp_fun <- approxfun(sleep_minute$t_norm, sleep_minute$active_smooth, rule = 2)
+    interp_fun <- approxfun(sleep_minute$t_norm, sleep_minute$activity, rule = 2)
     night_interp <- interp_fun(grid)
     night_agg <- data.frame(night = j, t_norm = grid, active_interp = night_interp)
     
@@ -200,6 +201,9 @@ for(i in seq_along(files)){
   
   ## Bind all the results
   pt_minute <- dplyr::bind_rows(pt_minute) %>% 
+    mutate(ID = id)
+  
+  pt_norm <- dplyr::bind_rows(pt_agg) %>% 
     mutate(ID = id)
   
   pt_agg <- dplyr::bind_rows(pt_agg) %>% 
@@ -212,6 +216,7 @@ for(i in seq_along(files)){
   ## Save participant results
   res_day[[i]] <- pt_day
   res_1min[[i]] <- pt_minute
+  res_norm[[i]] <- pt_norm
   res_1min_agg[[i]] <- pt_agg
   
 }
@@ -220,6 +225,7 @@ for(i in seq_along(files)){
 ## Bind all the results
 sleep_daysum <- dplyr::bind_rows(res_day)
 sumsleep_1min <- dplyr::bind_rows(res_1min)
+sumsleep_norm <- dplyr::bind_rows(res_norm)
 sumsleep_1min_agg <- dplyr::bind_rows(res_1min_agg)
 
 
@@ -228,12 +234,15 @@ sumsleep_1min$group <- dems$group[match(sumsleep_1min$ID, dems$pid)]
 sumsleep_1min$group <- ifelse(sumsleep_1min$group == 1, "Case (KS)", "Control")
 sleep_daysum$group <- dems$group[match(sleep_daysum$ID, dems$pid)]
 sleep_daysum$group <- ifelse(sleep_daysum$group == 1, "Case (KS)", "Control")
+sumsleep_norm$group <- dems$group[match(sumsleep_norm$ID, dems$pid)]
+sumsleep_norm$group <- ifelse(sumsleep_norm$group == 1, "Case (KS)", "Control")
 sumsleep_1min_agg$group <- dems$group[match(sumsleep_1min_agg$ID, dems$pid)]
 sumsleep_1min_agg$group <- ifelse(sumsleep_1min_agg$group == 1, "Case (KS)", "Control")
 
 ## Remove the ids that were removed from the study (should be 501, 512, 514, 517, 518, and 565)
 sumsleep_1min <- sumsleep_1min %>% filter(!is.na(group))
 sleep_daysum <- sleep_daysum %>% filter(!is.na(group))
+sumsleep_norm <- sumsleep_norm %>% filter(!is.na(group))
 sumsleep_1min_agg <- sumsleep_1min_agg %>% filter(!is.na(group))
 
 sumsleep_1min <- sumsleep_1min %>%
@@ -255,6 +264,7 @@ sumsleep_1min <- sumsleep_1min %>%
 
 ## Save files
 write.csv(sumsleep_1min, here::here("data-clean", "NonAggregated1minSleep_cleaned.csv"))
+write.csv(sumsleep_norm, here::here("data-clean", "NonAggregated_Normed_Sleep_cleaned.csv"))
 write.csv(sumsleep_1min_agg, here::here("data-clean", "Aggregated1minSleep_cleaned.csv"))
 write.csv(sleep_daysum, here::here("data-clean", "DaySleepSummary_cleaned.csv"))
 
