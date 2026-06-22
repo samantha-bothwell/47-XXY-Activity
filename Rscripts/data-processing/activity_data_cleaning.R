@@ -109,12 +109,12 @@ for (i in seq_along(files)) {
   ## Summarize 1 minute level data across all days
   pt_minute <- pt_day %>%
     group_by(minute) %>%
-    summarise(avg_step_count = mean(step_count, na.rm = TRUE),
+    summarise(summed_step_count = sum(step_count, na.rm = TRUE),
               avg_activity_score = mean(activity_score, na.rm = TRUE),
               avg_met_minute = avg_activity_score/60,
               .groups = "drop") %>%
     mutate(ID = id) %>%
-    select(minute, avg_step_count, avg_activity_score, avg_met_minute, ID)
+    select(minute, summed_step_count, avg_activity_score, avg_met_minute, ID)
   
   ## Summarize 15 minute level data within all days
   pt_15min <- pt_clean %>%
@@ -125,11 +125,11 @@ for (i in seq_along(files)) {
               .groups = "drop") %>%
     # # average at the 15 minute level across days
     group_by(min15) %>%
-    summarise(avg_step_count = mean(step_count, na.rm = TRUE),
+    summarise(summed_step_count = sum(step_count, na.rm = TRUE),
               avg_activity_score = mean(activity_score, na.rm = TRUE),
               .groups = "drop") %>%
     mutate(ID = id) %>%
-    select(min15, avg_step_count, avg_activity_score, ID)
+    select(min15, summed_step_count, avg_activity_score, ID)
   
   ## Summarize METS and MVPA per day of wear
   pt_mvpa <- pt_clean %>% 

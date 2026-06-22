@@ -95,7 +95,7 @@ for(i in seq_along(files)){
     # Assume awake if off wrist
     mutate(sleep_wake = ifelse(off_wrist_status == 1, 1, sleep_wake), 
            interval_status = ifelse(off_wrist_status == 1, "ACTIVE", interval_status))
-
+  
   ## Extract participant ID from path
   id <- substr(basename(fpath), 1, 3)
   
@@ -193,7 +193,7 @@ for(i in seq_along(files)){
     grid <- seq(0, 1, length.out = 200)
     interp_fun <- approxfun(sleep_minute$t_norm, sleep_minute$activity, rule = 2)
     night_interp <- interp_fun(grid)
-    night_agg <- data.frame(night = j, t_norm = grid, active_interp = night_interp)
+    night_agg <- data.frame(night = j, t_norm = grid, active_interp = night_interp, dat)
     
     pt_agg[[j]] <- night_agg
     
@@ -245,6 +245,7 @@ sleep_daysum <- sleep_daysum %>% filter(!is.na(group))
 sumsleep_norm <- sumsleep_norm %>% filter(!is.na(group))
 sumsleep_1min_agg <- sumsleep_1min_agg %>% filter(!is.na(group))
 
+
 sumsleep_1min <- sumsleep_1min %>%
   filter(!is.na(active_smooth)) %>%
   group_by(ID, date) %>%
@@ -261,13 +262,21 @@ sumsleep_1min <- sumsleep_1min %>%
                              .default = "Weekday"),
          school = ifelse(month %in% c("June", "July", "August"), "Summer", "School-Year"))
 
+wake_date <- sumsleep_1min %>% 
+  group_by(ID, night) %>% 
+  filter(date == max(date)) %>% 
+  slice(1) %>% 
+  ungroup() 
+sumsleep_norm <- sumsleep_norm %>%
+  left_join(wake_date, by = c("ID", "night"))
+
+
 
 ## Save files
 write.csv(sumsleep_1min, here::here("data-clean", "NonAggregated1minSleep_cleaned.csv"))
 write.csv(sumsleep_norm, here::here("data-clean", "NonAggregated_Normed_Sleep_cleaned.csv"))
 write.csv(sumsleep_1min_agg, here::here("data-clean", "Aggregated1minSleep_cleaned.csv"))
 write.csv(sleep_daysum, here::here("data-clean", "DaySleepSummary_cleaned.csv"))
-
 
 
 

@@ -18,6 +18,7 @@ library(Hmisc)
 library(flextable)
 library(magrittr)
 library(dplyr)
+library(hms)
 
 
 ## Source functions
@@ -31,6 +32,30 @@ dems <- read_csv(here::here("data-clean", "identifiable", "Demographics.csv")) %
 
 dems_sleep <- read_csv(here::here("data-clean", "identifiable", "Sleep.csv"))
 
+sumdata_day <- read_csv(here::here("data-clean", "Nonaggregated1min_cleaned.csv"))
+
+## Determine avg daily step count
+avg_steps <- sumdata_day %>% 
+  group_by(ID, date, group) %>% 
+  summarise(total_steps = sum(step_count)) %>% 
+  ungroup() %>% 
+  group_by(ID, group) %>% 
+  summarise(avg_daily_steps = mean(total_steps)) %>% 
+  ungroup()
+dems$avg_daily_steps <- avg_steps$avg_daily_steps[match(dems$pid, avg_steps$ID)]
+
+
+sumsleep_1min <- read_csv(here::here("data-clean", "NonAggregated1minSleep_cleaned.csv"))
+
+## Determine number of nights per person
+num_nights <- sumsleep_1min %>% 
+  group_by(ID, group) %>% 
+  summarise(num_nights = max(night)) %>% 
+  ungroup()
+dems$num_nights = num_nights$num_nights[match(dems$pid, num_nights$ID)]
+dems$sleep_collected = ifelse(is.na(dems$num_nights), "No", "Yes")
+
+
 ## Assign labels to dems variables 
 label(dems$calc_age) <- "Age (Years)"
 label(dems$nih_ethnicity_race) <- "Race/Ethnicity"
@@ -42,14 +67,19 @@ label(dems$n_days) <- "Number of Usable Activity Monitor Days (>70% Wear Time)"
 label(dems$percent_wear) <- "Percent Wear Time Across Usable Days"
 label(dems$avg_sleep_efficiency) <- "Average Sleep Efficiency (%)"
 label(dems$avg_waso) <- "Average Wake After Sleep Onset (mins)"
+label(dems$avg_daily_steps) <- "Average Daily Total Step Count"
 label(dems$mean_mets) <- "Average Daily METs"
 label(dems$mean_mvpa) <- "Average Percent of Time in MVPA"
+label(dems$mean_mvpa) <- "Average Percent of Time in MVPA"
+label(dems$sleep_collected) <- "Sleep Watch Data Collected"
+label(dems$num_nights) <- "Number of Usable Sleep Watch Nights"
 
 
 ## Print table1
 tbl1 <- table1(~ calc_age + nih_ethnicity_race + pe_wt + pe_ht + pe_bmi + season + 
                  n_days + percent_wear + avg_sleep_efficiency + avg_waso + 
-                 mean_mets + mean_mvpa| group, 
+                 avg_daily_steps + mean_mets + mean_mvpa + sleep_collected + 
+                 num_nights| group, 
        data = dems, overall = F, extra.col=list(`P-value`= pvalue), 
        render.continuous = my.render.cont)
 

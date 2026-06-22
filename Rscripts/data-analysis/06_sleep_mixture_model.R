@@ -27,7 +27,9 @@ library(mgcv)
 sleep <- read_csv(here::here("data-clean", "NonAggregated_Normed_Sleep_cleaned.csv")) %>% 
   filter(!is.na(active_interp)) %>% 
   mutate(log_act = log(active_interp + 0.01)) %>% 
-  mutate(index = t_norm*199)
+  mutate(index = t_norm.x*199) %>% 
+  mutate(time = ifelse(weekday == "Weekend" | school == "Summer", "Unstructured Night", 
+                       "Structured Night"))
 
 
 # Fit mixture model on log(activity) with varying components
@@ -42,52 +44,57 @@ sleep$state_mix <- factor(mix_fit$classification,
 smooth_data <- sleep %>%
   group_by(ID, night) %>%
   nest() %>%
-  mutate(fit = purrr::map(data, ~ {gam(log_act ~ s(index, bs = "cs", k = 20), data = ., method = "REML")}),
+  mutate(fit = purrr::map(data, ~ {gam(log_act ~ s(index, bs = "cr", k = 50), 
+                                       data = ., method = "REML", gamma = 0.5)}),
          preds = purrr::map2(data, fit, ~ {tibble(index = .$index,
-                                           yhat = predict(.y, newdata = .x))})) %>%
+                                           yhat = pmax(predict(.y, newdata = .x), log(0.01)))})) %>%
   select(ID, night, preds) %>%
   unnest(preds)
 sleep$yhat <- smooth_data$yhat
 
-group_avg <- sleep %>%
-  group_by(group, index) %>%
-  summarise(
-    log_act_mean = mean(log_act, na.rm = TRUE),
-    .groups = "drop"
-  )
-
-overall_smooth <- group_avg %>%
-  group_by(group) %>%
-  group_modify(~ {
-    fit <- gam(log_act_mean ~ s(index, bs = "cs", k = 30),
-               data = ., method = "REML")
-    tibble(index = .x$index,
-           yhat = exp(predict(fit, newdata = .x)))
-  }) %>%
-  ungroup()
 
 
 ### Multiple Nights Within Individual 
-sleep_plt <- ggplot(sleep, aes(x = index, group = paste0(ID, night), color = group)) + 
-  geom_line(aes(y = yhat), alpha = 0.1, size = 0.8) + 
+sleep_plt <- ggplot(sleep, aes(x = index, y = yhat, group = paste0(ID, night), color = group.x)) + 
+  geom_line(alpha = 0.1, size = 0.8) + 
   theme_bw() + 
-  # geom_smooth(data = overall_smooth, aes(x = index, y = yhat, group = group), size = 2) + 
-  scale_x_continuous(breaks = c(0, 200),
-                     labels = c("Waketime", "Bedtime")) +
-  xlab("") + 
-  #ylab("METS per Minute") + 
+  geom_smooth(aes(group = group.x), size = 2) + 
+  scale_x_continuous(breaks = c(10, 190), labels = c("Waketime", "Bedtime")) +
+  xlab("") +  
+  ylab("Log(Sleep Activity Score)") + 
   labs(color = "") + 
   theme(text = element_text(size = 20), 
-        legend.position = "bottom") + 
+        legend.position = "bottom", 
+        axis.title.x = element_blank(), 
+        axis.ticks.x = element_blank()) + 
   scale_color_manual(values = c("#369dd9", "#6D6D6D")) + 
+  facet_wrap(~ time) + 
   # Show levels of activity
-  geom_hline(yintercept = 1.5, linetype = "dashed", color = "gray40", size = 0.6) +
-  geom_hline(yintercept = 3.0, linetype = "dashed", color = "gray40", size = 0.6) + 
-  annotate("text", x = 20, y = 1.1, label = "Sedentary Activity", hjust = 0, size = 5) + 
-  annotate("text", x = 20, y = 2.25, label = "Light Activity", hjust = 0, size = 5) + 
-  annotate("text", x = 20, y = 4, label = "Moderate-to-Vigorous Activity", hjust = 0, size = 5)
-mets_plt
+  geom_hline(yintercept = -2.1, linetype = "dashed", color = "gray40", size = 0.6) +
+  geom_hline(yintercept = 1.4, linetype = "dashed", color = "gray40", size = 0.6) + 
+  geom_hline(yintercept = 3.4, linetype = "dashed", color = "gray40", size = 0.6) + 
+  annotate("text", x = 4, y = -4, label = "Very Still Sleep", hjust = 0, size = 5) + 
+  annotate("text", x = 4, y = -0.1, label = "Quiet Sleep", hjust = 0, size = 5) + 
+  annotate("text", x = 4, y = 2.5, label = "Restless Sleep", hjust = 0, size = 5) + 
+  annotate("text", x = 4, y = 5.1, label = "Wake/Active", hjust = 0, size = 5)
+sleep_plt
 
+ggsave(filename = here::here("outputs", "raw_sleep.png"), plot = sleep_plt, width = 11, height = 6, units = "in")
+
+
+
+
+# Load non-normed data
+sleep <- read_csv(here::here("data-clean", "NonAggregated1minSleep_cleaned.csv")) %>% 
+  filter(!is.na(activity))
+
+# Fit mixture model on log(activity) with varying components
+mix_fit <- Mclust(sleep$log_act, G = 1:4); summary(mix_fit)
+
+sleep$state_mix <- factor(mix_fit$classification, 
+                          levels = c(1:4), 
+                          labels = c("Very Still Sleep", "Quiet Sleep", 
+                                     "Restless Sleep", "Wake/Active"))
 
 # Get sleep stage summary per person and night
 sleep_sum <- sleep %>% 

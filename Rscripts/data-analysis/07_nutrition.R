@@ -19,6 +19,9 @@ library(tidyr)
 library(gridExtra)
 library(broom)
 library(lme4)
+library(Hmisc)
+
+reload_helpers <- function() {source("~/.Rprofile")}; reload_helpers()
 
 
 ## Load data
@@ -37,15 +40,40 @@ nutrition <- full_data %>%
   fill(dxa_lean_mass, .direction = "down") %>% 
   fill(group, .direction = "down") %>% 
   ungroup() %>% 
+  # calculate calories and tee difference
+  mutate(calories_minus_tee = calories - tee) %>% 
+  # calculate calories per lean mass
+  mutate(cals_per_leanmass = calories/dxa_lean_mass) %>% 
   # filter to only food logs 
   filter(redcap_repeat_instrument == "food_logs_summaries") %>% 
   # Code group
   mutate(group = factor(group, levels = c(1, 0), labels = c("KS Case", "Non-KS Control"))) %>% 
   # Aggregate within individual 
   group_by(pid, group) %>% 
-  summarise(across(c(fats, carbs, protein, calories, tee, cal_percent_tee, dxa_lean_mass), 
+  summarise(across(c(fats, carbs, protein, calories, tee, calories_minus_tee, cal_percent_tee, 
+                     dxa_lean_mass, cals_per_leanmass), 
                 ~ mean(.x, na.rm = T))) %>% 
   ungroup()
+
+
+label(nutrition$fats) <- "% Fat"
+label(nutrition$carbs) <- "% Carbohydrate"
+label(nutrition$protein) <- "% Protein"
+label(nutrition$calories) <- "Total Calories Consumed (cals)"
+label(nutrition$tee) <- "Total Energy Expenditure (TEE) (cals)"
+label(nutrition$calories_minus_tee) <- "Difference between Calories Consumed and TEE"
+label(nutrition$cal_percent_tee) <- "Total Calories as a % of TEE (%)"
+label(nutrition$cals_per_leanmass) <- "Calories Per Lean Mass (cals/kg)"
+
+
+## Print table1
+tbl2 <- table1(~ fats + carbs + protein + calories + tee + calories_minus_tee + cal_percent_tee + 
+                 cals_per_leanmass| group, 
+               data = nutrition, overall = F, extra.col=list(`P-value`= pvalue), 
+               render.continuous = my.render.cont)
+
+t1flex(tbl2) %>% 
+  save_as_docx(path=here::here("outputs", "Table2.docx"))
 
 
 ## Make a macronutrients plot
