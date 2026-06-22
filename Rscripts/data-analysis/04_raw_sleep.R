@@ -18,11 +18,15 @@ library(dplyr)
 library(tidyr)
 library(gridExtra)
 library(broom)
+library(lme4)
+library(lmerTest)
 
 
 ## Load data 
 dems_sleep <- read_csv(here::here("data-clean", "identifiable", "Sleep.csv"))
 sumdata_day <- read_csv(here::here("data-clean", "Nonaggregated1min_cleaned.csv"))
+sumdata_sleep <- read_csv(here::here("data-clean", "NonAggregated1minSleep_cleaned.csv"))
+
 
 #####
 ## Plot sleep time variables
@@ -41,7 +45,7 @@ bt_plot <- ggplot(dems_sleep, aes(x = group, y = bedtime_hours, fill = group)) +
   scale_y_continuous(breaks = seq(21, 26, by = 1), 
                      labels = c("9:00pm", "10:00pm", "11:00pm", "Midnight", "1:00am", "2:00am")) + 
   annotate("text", x = 1.5, y = max(dems_sleep$bedtime_hours, na.rm = TRUE), label = bt_pval,
-            size = 5)
+           size = 5)
 
 ## Wake Time
 wt_pval <- t.test(getup_hours ~ group, data = dems_sleep)$p.value
@@ -211,5 +215,42 @@ ad_mets <- ad_mets + theme(legend.position = "none")
 sleep_mets <- grid.arrange(arrangeGrob(ped_mets, ad_mets, ncol = 2), legend, ncol = 1, heights = c(10, 1))
 
 ggsave(filename = here::here("outputs", "sleep_mets.png"), plot = sleep_mets, width = 10, height = 5, units = "in")
+
+
+
+
+
+#####
+## Activity and Sleep Correlation METs and Hrs Still/Quiet
+#####
+
+act_sum <- sumdata_day %>% 
+  group_by(ID, date, group) %>% 
+  summarise(mean_mets = mean(met_minute)) %>% 
+  ungroup()
+
+sleep_sum <- sumdata_sleep %>% 
+  group_by(ID, night) %>% 
+  summarise(date = max(date), 
+            hours_still_quiet = sum(activity < 14)/60) %>% 
+  ungroup()
+
+act_sleep_sum <- sleep_sum %>% 
+  left_join(act_sum, by = c("ID", "date")) %>% 
+  filter(!is.na(mean_mets)) %>% 
+  group_by(ID) %>%
+  arrange(date) %>%
+  mutate(prev_day_mean_mets = lag(mean_mets)) %>% 
+  ungroup()
+
+# Direction 1: previous day activity → that night's sleep
+m1_case <- lmer(hours_still_quiet ~ prev_day_mean_mets + (1 | ID), 
+                data = act_sleep_sum[act_sleep_sum$group == "KS Case",])
+m1_control <- lmer(hours_still_quiet ~ prev_day_mean_mets + (1 | ID), 
+                   data = act_sleep_sum[act_sleep_sum$group == "Non-KS Control",])
+
+# Direction 2: previous night sleep → next day activity  
+m2 <- lmer(mean_mets ~ hours_still_quiet + (1 | ID), data = df)
+
 
 

@@ -59,7 +59,7 @@ sleep_plt <- ggplot(sleep, aes(x = index, y = yhat, group = paste0(ID, night), c
   geom_line(alpha = 0.1, size = 0.8) + 
   theme_bw() + 
   geom_smooth(aes(group = group.x), size = 2) + 
-  scale_x_continuous(breaks = c(10, 190), labels = c("Waketime", "Bedtime")) +
+  scale_x_continuous(breaks = c(10, 190), labels = c("Bedtime", "Waketime")) +
   xlab("") +  
   ylab("Log(Sleep Activity Score)") + 
   labs(color = "") + 
