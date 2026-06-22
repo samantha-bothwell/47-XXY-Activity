@@ -43,7 +43,7 @@ nutrition <- full_data %>%
   # calculate calories and tee difference
   mutate(calories_minus_tee = calories - tee) %>% 
   # calculate calories per lean mass
-  mutate(cals_per_leanmass = calories/dxa_lean_mass) %>% 
+  mutate(cals_per_leanmass = calories/(dxa_lean_mass/1000)) %>% 
   # filter to only food logs 
   filter(redcap_repeat_instrument == "food_logs_summaries") %>% 
   # Code group
