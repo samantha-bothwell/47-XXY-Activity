@@ -246,11 +246,17 @@ act_sleep_sum <- sleep_sum %>%
 # Direction 1: previous day activity → that night's sleep
 m1_case <- lmer(hours_still_quiet ~ prev_day_mean_mets + (1 | ID), 
                 data = act_sleep_sum[act_sleep_sum$group == "KS Case",])
+summary(m1_case)
 m1_control <- lmer(hours_still_quiet ~ prev_day_mean_mets + (1 | ID), 
                    data = act_sleep_sum[act_sleep_sum$group == "Non-KS Control",])
+summary(m1_control)
 
 # Direction 2: previous night sleep → next day activity  
-m2 <- lmer(mean_mets ~ hours_still_quiet + (1 | ID), data = df)
-
+m2_case <- lmer(mean_mets ~ hours_still_quiet + (1 | ID), 
+                data = act_sleep_sum[act_sleep_sum$group == "KS Case",])
+summary(m2_case)
+m2_control <- lmer(mean_mets ~ hours_still_quiet + (1 | ID), 
+                   data = act_sleep_sum[act_sleep_sum$group == "Non-KS Control",])
+summary(m2_control)
 
 
