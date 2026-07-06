@@ -33,12 +33,16 @@ sleep <- read_csv(here::here("data-clean", "NonAggregated_Normed_Sleep_cleaned.c
 
 
 # Fit mixture model on log(activity) with varying components
+set.seed(2026)
 mix_fit <- Mclust(sleep$log_act, G = 1:4); summary(mix_fit)
 
 sleep$state_mix <- factor(mix_fit$classification, 
                           levels = c(1:4), 
                           labels = c("Very Still Sleep", "Quiet Sleep", 
                                      "Restless Sleep", "Wake/Active"))
+
+
+write_csv(sleep, here::here("data-clean", "Sleep_Stages.csv"))
 
 
 smooth_data <- sleep %>%
