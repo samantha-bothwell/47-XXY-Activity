@@ -33,7 +33,7 @@ activity_pca <- sumdata_day %>%
   group_by(ID, date, bout_id) %>%
   mutate(bout_length = n()) %>%
   ungroup() %>% 
-  # average within night and ID
+  # average within day and ID
   group_by(ID, group, date) %>%
   summarise(hours_mvpa = sum(activity_level == "Moderate-to-Vigorous Activity")/60,
             hours_light = sum(activity_level == "Light Activity")/60,
@@ -45,7 +45,7 @@ activity_pca <- sumdata_day %>%
 
 
 activity_pca_id <- activity_pca %>% 
-  # average across nights within ID
+  # average across days within ID
   group_by(ID, group) %>% 
   summarise(idmn_hours_mvpa = mean(hours_mvpa), idmn_hours_light = mean(hours_light),
             idmn_mean_bout_mvpa = mean(mean_bout_mvpa), idmn_mean_bout_light = mean(mean_bout_light)) %>% 
@@ -56,7 +56,7 @@ activity_pca_id <- activity_pca %>%
          mean_bout_mvpa_scaled = scale(idmn_mean_bout_mvpa)[,1],
          mean_bout_light_scaled = scale(idmn_mean_bout_light)[,1])
 
-# adjust and standardize individual sleep estimates
+# adjust and standardize individual activity estimates
 activity_pca_day <- activity_pca %>% 
   left_join(activity_pca_id, by = c("ID")) %>% 
   mutate(hours_mvpa_adj = hours_mvpa - idmn_hours_mvpa,
@@ -110,13 +110,19 @@ bw_plot <- ggplot(between_scores, aes(x = PC1, y = PC2, color = group)) +
 wi_plot <- ggplot(within_scores, aes(x = PC1, y = PC2, color = group)) +
   geom_point(alpha = 0.5) +
   stat_ellipse(level = 0.95) +
-  labs(title = "Within-person PCA: Night-level Patterns") +
+  labs(title = "Within-person PCA: Day-level Patterns") +
   theme_minimal(base_size = 16) + 
   theme(legend.position = "bottom")
 
 grid.arrange(bw_plot, wi_plot, ncol = 2)
 
+summary(lm(PC1 ~ group, data = between_scores))
 summary(lm(PC1 ~ group, data = within_scores))
+
+bartlett.test(PC2 ~ group, data = within_scores)
+#Controls tend to have a globally more active activity profile characterized by 
+#greater time in light activity and Moderate-to-Vigorous (non-sedantary) activity
+#and somewhat longer activity bouts.
 
 ## Inspect loadings
 print(pca_between$rotation[, 1:5])
