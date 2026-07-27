@@ -28,6 +28,14 @@ sumdata_1min <- read_csv(here::here("data-clean", "Aggregated1min_cleaned.csv"))
 redcap <- read_csv(here::here("data-raw", "LTE_FullDATA_03172026.csv"))
 
 
+sumdata_day <- sumdata_day %>% 
+  mutate(dayofweek = weekdays(date), 
+         month = months(date),
+         weekday = case_when(dayofweek %in% c("Saturday", "Sunday") ~ "Weekend", 
+                             .default = "Weekday"),
+         school = ifelse(month %in% c("June", "July", "August"), "Summer", "School-Year"), 
+         struc = ifelse(weekday == "Weekday" & school == "School-Year", "Structured", "Unstructured"))
+
 ## Smooth individual data 
 smooth_data <- sumdata_day %>%
   group_by(ID, date) %>%
@@ -41,7 +49,7 @@ sumdata_day$yhat <- smooth_data$yhat
 
 
 group_avg <- sumdata_day %>%
-  group_by(group, index) %>%
+  group_by(group, index, struc) %>%
   summarise(
     met_mean = mean(met_minute, na.rm = TRUE),
     .groups = "drop"

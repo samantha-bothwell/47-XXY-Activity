@@ -50,7 +50,16 @@ sumdata_day <- sumdata_day %>%
          month = months(date),
          weekday = case_when(dayofweek %in% c("Saturday", "Sunday") ~ "Weekend", 
                              .default = "Weekday"),
-         school = ifelse(month %in% c("June", "July", "August"), "Summer", "School-Year"))
+         school = ifelse(month %in% c("June", "July", "August"), "Summer", "School-Year"), 
+         struc = ifelse(weekday == "Weekday" & school == "School-Year", "Structured", "Unstructured"))
+
+one_day <- sumdata_day %>% 
+  group_by(ID, date) %>% 
+  slice(1) %>% 
+  ungroup()
+
+table(one_day$struc)/length(one_day$struc)
+
 
 
 ## FoSR

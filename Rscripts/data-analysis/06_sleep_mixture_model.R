@@ -48,13 +48,24 @@ write_csv(sleep, here::here("data-clean", "Sleep_Stages.csv"))
 smooth_data <- sleep %>%
   group_by(ID, night) %>%
   nest() %>%
-  mutate(fit = purrr::map(data, ~ {gam(log_act ~ s(index, bs = "cr", k = 50), 
+  mutate(fit = purrr::map(data, ~ {gam(log_act ~ s(index, bs = "cr", k = 100), 
                                        data = ., method = "REML", gamma = 0.5)}),
          preds = purrr::map2(data, fit, ~ {tibble(index = .$index,
-                                           yhat = pmax(predict(.y, newdata = .x), log(0.01)))})) %>%
+                                                  yhat = pmax(predict(.y, newdata = .x), log(0.01)))})) %>%
   select(ID, night, preds) %>%
   unnest(preds)
 sleep$yhat <- smooth_data$yhat
+
+
+group_smooth <- sleep %>%
+  group_by(group.x, time) %>%
+  nest() %>%
+  mutate(fit = purrr::map(data, ~ {gam(log_act ~ s(index, bs = "cr", k = 100) + s(ID, bs = "re"), 
+                                       data = ., method = "REML", gamma = 0.5)}),
+         preds = purrr::map2(data, fit, ~ {tibble(index = .$index,
+                                                  yhat = pmax(predict(.y, newdata = .x), log(0.01)))})) %>%
+  select(group.x, time, preds) %>%
+  unnest(preds)
 
 
 
@@ -62,7 +73,7 @@ sleep$yhat <- smooth_data$yhat
 sleep_plt <- ggplot(sleep, aes(x = index, y = yhat, group = paste0(ID, night), color = group.x)) + 
   geom_line(alpha = 0.1, size = 0.8) + 
   theme_bw() + 
-  geom_smooth(aes(group = group.x), size = 2) + 
+  geom_smooth(data = group_smooth, aes(group = group.x), size = 2) + 
   scale_x_continuous(breaks = c(10, 190), labels = c("Bedtime", "Waketime")) +
   xlab("") +  
   ylab("Log(Sleep Activity Score)") + 
@@ -74,7 +85,7 @@ sleep_plt <- ggplot(sleep, aes(x = index, y = yhat, group = paste0(ID, night), c
   scale_color_manual(values = c("#369dd9", "#6D6D6D")) + 
   facet_wrap(~ time) + 
   # Show levels of activity
-  geom_hline(yintercept = -2.1, linetype = "dashed", color = "gray40", size = 0.6) +
+  geom_hline(yintercept = -2, linetype = "dashed", color = "gray40", size = 0.6) +
   geom_hline(yintercept = 1.4, linetype = "dashed", color = "gray40", size = 0.6) + 
   geom_hline(yintercept = 3.4, linetype = "dashed", color = "gray40", size = 0.6) + 
   annotate("text", x = 4, y = -4, label = "Very Still Sleep", hjust = 0, size = 5) + 
@@ -84,6 +95,7 @@ sleep_plt <- ggplot(sleep, aes(x = index, y = yhat, group = paste0(ID, night), c
 sleep_plt
 
 ggsave(filename = here::here("outputs", "raw_sleep.png"), plot = sleep_plt, width = 11, height = 6, units = "in")
+
 
 
 
