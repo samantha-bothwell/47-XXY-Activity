@@ -20,6 +20,7 @@ library(gridExtra)
 library(broom)
 library(lme4)
 library(Hmisc)
+library(table1)
 
 reload_helpers <- function() {source("~/.Rprofile")}; reload_helpers()
 

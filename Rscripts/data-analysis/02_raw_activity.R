@@ -57,7 +57,7 @@ group_avg <- sumdata_day %>%
 
 
 overall_smooth <- group_avg %>%
-  group_by(group) %>%
+  group_by(group, struc) %>%
   group_modify(~ {
     fit <- gam(log(met_mean) ~ s(index, bs = "cs", k = 30),
                data = ., method = "REML")
@@ -73,24 +73,45 @@ mets_plt <- ggplot(sumdata_day, aes(x = index, group = paste0(ID, date), color =
   theme_bw() + 
   geom_smooth(data = overall_smooth, aes(x = index, y = yhat, group = group), size = 2) + 
   scale_x_continuous(breaks = c(0, 182, 362, 542, 722, 902, 1082, 1262, 1442), 
-                     labels = c("Midnight", "3 am", "6 am", "9 am", "Noon", "3 pm", "6 pm", 
-                                "9 pm", "Midnight")) + 
+                     labels = c("12 am", "3 am", "6 am", "9 am", "Noon", "3 pm", "6 pm", 
+                                "9 pm", "12 am")) + 
   xlab("") + 
   ylab("METS per Minute") + 
   labs(color = "") + 
   theme(text = element_text(size = 20), 
+        axis.text.x = element_text(size = 18),
         legend.position = "bottom") + 
   scale_color_manual(values = c("#369dd9", "#6D6D6D")) + 
+  facet_wrap(~ struc, ncol = 2) +
   # Show levels of activity
   geom_hline(yintercept = 1.5, linetype = "dashed", color = "gray40", size = 0.6) +
   geom_hline(yintercept = 3.0, linetype = "dashed", color = "gray40", size = 0.6) + 
-  annotate("text", x = 20, y = 1.1, label = "Sedentary Activity", hjust = 0, size = 5) + 
-  annotate("text", x = 20, y = 2.25, label = "Light Activity", hjust = 0, size = 5) + 
-  annotate("text", x = 20, y = 4, label = "Moderate-to-Vigorous Activity", hjust = 0, size = 5)
+  annotate("text", x = 20, y = 1.1, label = "Sedentary Activity", hjust = 0, size = 6) + 
+  annotate("text", x = 20, y = 2.25, label = "Light Activity", hjust = 0, size = 6) + 
+  annotate("text", x = 20, y = 4, label = "Moderate-to-Vigorous Activity", hjust = 0, size = 6)
 mets_plt
 
-ggsave(filename = here::here("outputs", "raw_mets.png"), plot = mets_plt, width = 10, height = 7, units = "in")
+ggsave(filename = here::here("outputs", "raw_mets_nonlogged.png"), plot = mets_plt, width = 14, height = 6, units = "in")
 
+
+
+one_record <- sumdata_day %>% 
+  filter(ID == 563) %>% 
+  filter(date == as.Date("2024-02-17"))
+
+ggplot(one_record, aes(x = index)) + 
+  geom_point(aes(y = met_minute), size = 1.5) + 
+  #geom_smooth(aes(y = yhat), method = "lm", size = 2, color = "#369dd9") + 
+  geom_path(aes(y = yhat), size = 2, color = "#369dd9") + 
+  theme_bw() + 
+  scale_x_continuous(breaks = c(0, 182, 362, 542, 722, 902, 1082, 1262, 1442), 
+                     labels = c("12 am", "3 am", "6 am", "9 am", "Noon", "3 pm", "6 pm", 
+                                "9 pm", "12 am")) + 
+  xlab("") + 
+  ylab("METS per Minute") + 
+  theme(text = element_text(size = 20), 
+        axis.text.x = element_text(size = 18),
+        legend.position = "bottom")
 
 
 ### Summarize Avg Daily METs 
