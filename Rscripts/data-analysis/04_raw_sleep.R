@@ -94,7 +94,22 @@ dems_sleep_v1 <- dems_sleep %>%
   group_by(pid, group) %>% 
   summarise(mn_sleep_ped_t = max(sleep_ped_t), 
             mn_sleep_ad_t = max(sleep_ad_t)) %>% 
+  mutate(mn_sleep_t = rowMeans(cbind(mn_sleep_ped_t, mn_sleep_ad_t), na.rm = T)) %>% 
   ungroup()
+
+ov_pval <- t.test(mn_sleep_t ~ group, data = dems_sleep_v1)$p.value
+ov_pval <- ifelse(ov_pval < 0.001, "p < 0.001", paste0("p = ", round(ov_pval, 3)))
+
+ov_plot <- ggplot(dems_sleep_v1, aes(x = group, y = mn_sleep_t, fill = group)) + 
+  geom_boxplot() + 
+  theme_bw() + 
+  theme(text = element_text(size = 20), 
+        legend.position = "none") + 
+  scale_fill_manual(values = c("#369dd9", "#6D6D6D")) + 
+  xlab("") + ylab("PROMIS Sleep Fatigue T-Score") + 
+  scale_y_continuous(limits = c(35, 75), breaks = seq(40, 70, by = 10)) + 
+  annotate("text", x = 1.5, y =75, label = ov_pval, size = 6)
+
 ped_pval <- t.test(mn_sleep_ped_t ~ group, data = dems_sleep_v1)$p.value
 ped_pval <- ifelse(ped_pval < 0.001, "p < 0.001", paste0("p = ", round(ped_pval, 3)))
 
