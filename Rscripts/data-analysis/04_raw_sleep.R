@@ -244,7 +244,7 @@ sleep_mets <- grid.arrange(arrangeGrob(ped_mets, ad_mets, ncol = 2), legend, nco
 
 ggsave(filename = here::here("outputs", "sleep_mets.png"), plot = sleep_mets, width = 10, height = 5, units = "in")
 
-ggsave(filename = here::here("outputs", "sleep_mets_overall.png"), plot = ov_mets, width = 5, height = 5, units = "in")
+ggsave(filename = here::here("outputs", "sleep_mets_overall.png"), plot = ov_mets, width = 7, height = 5, units = "in")
 
 
 
