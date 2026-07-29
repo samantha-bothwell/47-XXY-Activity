@@ -157,6 +157,29 @@ avg_mets <- sumdata_day %>%
 dems_sleep_v1$mean_mets <- avg_mets$mean_mets[match(dems_sleep_v1$pid, avg_mets$ID)]
 
 
+## Overall PROMIS + METS
+# Linear Regression
+lm_stats <- dems_sleep_v1 %>%
+  group_by(group) %>%
+  do(tidy(lm(mn_sleep_t ~ mean_mets, data = .))) %>%
+  filter(term == "mean_mets") %>%
+  mutate(label = paste0(group,
+                        ": β = ", round(estimate/10, 2), ", ",
+                        ifelse(p.value < 0.001, "p < 0.001", paste0("p = ", round(p.value, 3)))))
+label = paste0(lm_stats$label[1], "\n", lm_stats$label[2])
+
+# Plot
+ov_mets <- ggplot(dems_sleep_v1, aes(x = mean_mets, mn_sleep_t, color = group)) + 
+  geom_point(size = 3) + geom_smooth(method = "lm") + 
+  theme_bw() + 
+  theme(text = element_text(size = 20), 
+        legend.position = "none") + 
+  scale_color_manual(values = c("#369dd9", "#6D6D6D")) + 
+  labs(x = "Average Daily METs", y = "PROMIS Sleep Fatigue T-Score") +
+  scale_y_continuous(limits = c(35, 80), breaks = seq(40, 80, by = 10)) + 
+  annotate("label", x = 1.35, y = 40, label = label, hjust = 0, size = 4.2, 
+           fill = "white", color = "black", label.size = 0.4)
+
 ## Ped PROMIS + METS
 # Linear Regression
 lm_stats <- dems_sleep_v1 %>%
@@ -221,6 +244,7 @@ sleep_mets <- grid.arrange(arrangeGrob(ped_mets, ad_mets, ncol = 2), legend, nco
 
 ggsave(filename = here::here("outputs", "sleep_mets.png"), plot = sleep_mets, width = 10, height = 5, units = "in")
 
+ggsave(filename = here::here("outputs", "sleep_mets_overall.png"), plot = ov_mets, width = 5, height = 5, units = "in")
 
 
 
