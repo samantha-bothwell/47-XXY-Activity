@@ -92,8 +92,8 @@ ggsave(filename = here::here("outputs", "sleep_times.png"), plot = sleep_times, 
 ## Pediatric
 dems_sleep_v1 <- dems_sleep %>% 
   group_by(pid, group) %>% 
-  summarise(mn_sleep_ped_t = max(sleep_ped_t), 
-            mn_sleep_ad_t = max(sleep_ad_t)) %>% 
+  summarise(mn_sleep_ped_t = mean(sleep_ped_t), 
+            mn_sleep_ad_t = mean(sleep_ad_t)) %>% 
   mutate(mn_sleep_t = rowMeans(cbind(mn_sleep_ped_t, mn_sleep_ad_t), na.rm = T)) %>% 
   ungroup()
 
